@@ -16,9 +16,9 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P4-01 | Runtime | Implement AgentCard and BaseAgent lifecycle | REVIEW | P3 | unit and integration tests pass | Phase 4 PR |
 | P4-02 | Registry | Implement register/search/heartbeat/list APIs | REVIEW | P4-01 | Registry API tests pass | Phase 4 PR |
 | P4-03 | Registry | Seed 57+ agents with heartbeat events | REVIEW | P4-02 | online count >= 57 | Browser snapshot of `/api/agents/online`; Redis `agent.lifecycle` evidence |
-| P5-01 | Dashboard | Build Live Dashboard primary screen | TODO | P4 | browser screenshot evidence | Pending |
-| P5-02 | Topology | Build React Flow topology with 57+ nodes | TODO | P5-01 | node count >= 57 in browser | Pending |
-| P5-03 | Dashboard | Add metrics, event stream, negotiation, blockchain panels | TODO | P5-01 | 20 events and latency < 2s | Pending |
+| P5-01 | Dashboard | Build Live Dashboard primary screen | REVIEW | P4 | browser screenshot evidence | `/tmp/wishlive-phase5-dashboard.png` |
+| P5-02 | Topology | Build React Flow topology with 57+ nodes | REVIEW | P5-01 | node count >= 57 in browser | `/tmp/wishlive-phase5-topology-mobile.png` |
+| P5-03 | Dashboard | Add metrics, event stream, negotiation, blockchain panels | REVIEW | P5-01 | 20 events and latency < 2s | Browser snapshot shows 24 event rows; SSE curl emits 1s cadence |
 | P6-01 | Wish | Implement Wish Pool and wish APIs | TODO | P5 | API and browser flow pass | Pending |
 | P6-02 | Demand | Implement Demand Pool threshold aggregation | TODO | P6-01 | 10 wishes create 1 demand | Pending |
 | P6-03 | Matching | Implement Top 3 matching formula | TODO | P6-02 | formula unit tests pass | Pending |
