@@ -1,0 +1,56 @@
+# 事件总线 YAML Schema
+
+# Redis Streams 事件格式定义
+
+event:
+  id: string            # UUID
+  type: string          # 事件类型
+  source: string        # agentId 或 system
+  timestamp: number     # Unix 毫秒时间戳
+  data: object          # 事件负载
+  metadata:
+    traceId: string     # 链路追踪 ID
+    spanId: string      # 跨度 ID
+
+streams:
+  agent.lifecycle:
+    - agent.registered
+    - agent.online
+    - agent.offline
+    - agent.error
+
+  agent.task:
+    - task.created
+    - task.started
+    - task.completed
+    - task.failed
+
+  wish.events:
+    - wish.created
+    - wish.withdrawn
+
+  demand.events:
+    - demand.created
+    - demand.threshold_reached
+
+  matching.events:
+    - matching.started
+    - matching.completed
+
+  negotiation.events:
+    - negotiation.started
+    - proposal.sent
+    - counterproposal.sent
+    - proposal.accepted
+    - proposal.rejected
+    - deal.created
+
+  settlement.events:
+    - settlement.started
+    - escrow.created
+    - ticket.minted
+    - blockchain.tx.sent
+    - blockchain.tx.confirmed
+
+  concierge.events:
+    - concierge.notification

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WishLIVE | Uniting the Underground</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#ddb7ff",
+                        "tertiary-container": "#f751a1",
+                        "on-tertiary": "#640039",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "primary-container": "#b76dff",
+                        "on-primary-container": "#400071",
+                        "on-primary-fixed": "#2c0051",
+                        "on-tertiary-container": "#570032",
+                        "inverse-primary": "#842bd2",
+                        "surface-container": "#201f22",
+                        "surface-container-high": "#2a2a2c",
+                        "inverse-on-surface": "#313032",
+                        "primary-fixed-dim": "#ddb7ff",
+                        "on-surface-variant": "#cfc2d6",
+                        "tertiary": "#ffb0cd",
+                        "on-tertiary-fixed": "#3e0022",
+                        "surface-dim": "#131315",
+                        "background": "#131315",
+                        "surface-container-highest": "#353437",
+                        "outline": "#988d9f",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-secondary-fixed": "#001a42",
+                        "secondary-container": "#0566d9",
+                        "on-error": "#690005",
+                        "on-secondary-container": "#e6ecff",
+                        "on-primary": "#490080",
+                        "on-primary-fixed-variant": "#6900b3",
+                        "on-background": "#e5e1e4",
+                        "on-secondary": "#002e6a",
+                        "error-container": "#93000a",
+                        "secondary": "#adc6ff",
+                        "tertiary-fixed": "#ffd9e4",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#004395",
+                        "surface-variant": "#353437",
+                        "surface": "#131315",
+                        "inverse-surface": "#e5e1e4",
+                        "surface-bright": "#39393b",
+                        "primary-fixed": "#f0dbff",
+                        "tertiary-fixed-dim": "#ffb0cd",
+                        "primary": "#ddb7ff",
+                        "surface-container-lowest": "#0e0e10",
+                        "outline-variant": "#4d4354",
+                        "on-tertiary-fixed-variant": "#8c0053",
+                        "surface-container-low": "#1c1b1d",
+                        "on-surface": "#e5e1e4"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "8px",
+                        "container-max": "1280px",
+                        "section-gap": "120px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "64px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Sora"],
+                        "headline-lg": ["Sora"],
+                        "label-sm": ["JetBrains Mono"],
+                        "display-lg": ["Sora"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "headline-lg-mobile": ["Sora"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "500"}],
+                        "display-lg": ["72px", {"lineHeight": "80px", "letterSpacing": "-0.04em", "fontWeight": "800"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(19, 19, 21, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(221, 183, 255, 0.1);
+        }
+        .hero-glow {
+            text-shadow: 0 0 30px rgba(221, 183, 255, 0.4);
+        }
+        .neon-border {
+            box-shadow: 0 0 15px rgba(221, 183, 255, 0.2);
+        }
+        .pulse-live {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        body {
+            background-color: #131315;
+            color: #e5e1e4;
+            overflow-x: hidden;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4d4354;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md selection:bg-primary selection:text-on-primary">
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-desktop py-6 bg-transparent backdrop-blur-md">
+<div class="font-headline-md text-headline-md font-bold text-on-surface tracking-tighter">
+            WishLIVE
+        </div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-label-sm text-label-sm text-primary border-b-2 border-primary pb-1 transition-colors duration-300" href="#">首页</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">许愿</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">探索演出</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">音乐人</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">场地</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">关于我们</a>
+</div>
+<button class="px-6 py-2 rounded-full border border-primary text-primary font-label-sm text-label-sm scale-95 active:scale-90 transition-transform glass-panel hover:bg-primary/10">
+            Connect Wallet
+        </button>
+</nav>
+<!-- Main Hero Section -->
+<main class="relative h-screen w-full overflow-hidden">
+<!-- Full-screen Background -->
+<div class="absolute inset-0 z-0">
+<img alt="WishLIVE Background" class="w-full h-full object-cover opacity-80" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCEWM0XeAmLectjBFUgrcp3JCGtkgH7m6XeTDF7jcXy2RkXH25X7veIgKCWLsV31xeybzwC7dM0QuJp-Jn9CrC0E5df7YCefPpP7DUHsmnMOqnMp_BoWCfdWZGlNCITjwHaDucm26yUKsjj7NbtF2AIKue7VjqiPQpo84AL_0KIF2_PMppqrMz0fyAFApnhteULCBJA9zoXeePdpp21CnBp6is9PR2bvnMct2o0wJO3nKsBmhZnKgA-UT5LBBhovJYf_fLJEeCM1ldy"/>
+<div class="absolute inset-0 bg-gradient-to-tr from-background via-transparent to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-80"></div>
+</div>
+<!-- Hero Content Wrapper -->
+<div class="relative z-10 h-full flex flex-col justify-center px-margin-desktop pt-20">
+<div class="max-w-2xl">
+<!-- Decorative element -->
+<div class="flex items-center gap-3 mb-6">
+<div class="h-[1px] w-12 bg-primary"></div>
+<span class="font-label-sm text-label-sm text-primary tracking-[0.2em]">LIVE MUSIC ECOSYSTEM</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface hero-glow mb-4 leading-none">
+                    WishLIVE
+                </h1>
+<p class="font-headline-md text-headline-md text-on-surface-variant mb-16 opacity-90">
+                    每一场演出，都始于每一份期待
+                </p>
+<!-- Role Selection Section -->
+<div class="glass-panel p-8 rounded-xl max-w-lg">
+<h2 class="font-body-lg text-body-lg text-on-surface mb-8">请问您现在的角色是？</h2>
+<div class="grid grid-cols-3 gap-4">
+<!-- Audience Button -->
+<button class="flex flex-col items-center justify-center py-5 px-2 rounded-lg bg-primary text-on-primary shadow-[0_0_20px_rgba(221,183,255,0.3)] transition-all hover:scale-105 active:scale-95 group">
+<span class="font-body-md font-bold mb-1">观众</span>
+<span class="font-label-sm text-[10px] opacity-80 uppercase tracking-widest">Audience</span>
+</button>
+<!-- Musician Button -->
+<button class="flex flex-col items-center justify-center py-5 px-2 rounded-lg glass-panel border border-outline-variant hover:border-primary transition-all hover:scale-105 active:scale-95 group">
+<span class="font-body-md font-bold mb-1">音乐人</span>
+<span class="font-label-sm text-[10px] opacity-60 uppercase tracking-widest">Musician</span>
+</button>
+<!-- Venue Button -->
+<button class="flex flex-col items-center justify-center py-5 px-2 rounded-lg glass-panel border border-outline-variant hover:border-primary transition-all hover:scale-105 active:scale-95 group">
+<span class="font-body-md font-bold mb-1">场地方</span>
+<span class="font-label-sm text-[10px] opacity-60 uppercase tracking-widest">Venue</span>
+</button>
+</div>
+</div>
+<!-- Live Stats -->
+<div class="mt-12 flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary-container pulse-live shadow-[0_0_8px_#f751a1]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">目前有 128 场演出正在筹备中</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Scroll Indicator -->
+<div class="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 opacity-50">
+<span class="font-label-sm text-label-sm uppercase tracking-widest">Explore</span>
+<div class="w-[1px] h-12 bg-gradient-to-b from-primary to-transparent"></div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 left-0 w-full z-40 flex justify-between items-center px-margin-desktop py-8 bg-transparent">
+<div class="font-label-sm text-label-sm text-on-surface-variant opacity-80">
+            EST. 2024
+        </div>
+<div class="flex items-center gap-12">
+<span class="font-label-sm text-label-sm text-on-surface-variant opacity-80 tracking-widest">UNITING THE UNDERGROUND THROUGH SOUND</span>
+</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant opacity-80 hover:text-primary transition-colors cursor-pointer tracking-widest">
+            DECENTRALIZED RHYTHM
+        </div>
+</footer>
+<script>
+        // Simple parallax effect on background image
+        document.addEventListener('mousemove', (e) => {
+            const amount = 10;
+            const x = (e.clientX / window.innerWidth - 0.5) * amount;
+            const y = (e.clientY / window.innerHeight - 0.5) * amount;
+            const bg = document.querySelector('img');
+            if(bg) {
+                bg.style.transform = `scale(1.05) translate(${x}px, ${y}px)`;
+            }
+        });
+
+        // Button hover sounds or micro-interactions could be added here
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                // Potential for haptic or audio feedback trigger
+            });
+        });
+    </script>
+</body></html>

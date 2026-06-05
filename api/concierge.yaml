@@ -1,0 +1,173 @@
+openapi: 3.0.0
+info:
+  title: WishLive Concierge API
+  version: 1.0.0
+  description: 用户引导与解释服务 —— 将系统状态/失败原因/建议步骤转为自然语言
+
+servers:
+  - url: http://localhost:3004
+    description: 本地开发
+
+paths:
+  /concierge/explain:
+    post:
+      summary: Explain System Status
+      description: 解释当前系统状态，包括 Agent 拓扑、事件流、协商进展
+      operationId: explainStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 人类可读的状态解释
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /concierge/failure:
+    post:
+      summary: Explain Failure
+      description: 解释某个环节的失败原因（协商失败、匹配失败、交易失败等）
+      operationId: explainFailure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailureExplainRequest'
+      responses:
+        '200':
+          description: 失败原因解释
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /concierge/next:
+    post:
+      summary: Suggest Next Step
+      description: 根据当前状态建议用户下一步操作
+      operationId: suggestNextStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NextStepRequest'
+      responses:
+        '200':
+          description: 下一步建议
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NextStepResponse'
+
+components:
+  schemas:
+    ExplainRequest:
+      type: object
+      required:
+        - context
+      properties:
+        context:
+          type: string
+          description: 要解释的范围
+          example: "协商进展"
+        agentId:
+          type: string
+          description: 关注的特定 Agent（可选）
+          example: "agent:musician:001"
+        detail:
+          type: string
+          enum: [summary, normal, detailed]
+          default: normal
+
+    ExplainResponse:
+      type: object
+      properties:
+        explanation:
+          type: string
+          description: 人类可读的自然语言解释
+          example: "当前有 5 个观众希望看到摇滚演出，需求正在聚合中..."
+        relatedEvents:
+          type: array
+          items:
+            type: string
+          description: 相关的近期事件
+          example:
+            - "wish.created (2分钟前)"
+            - "demand.created (30秒前)"
+        timestamp:
+          type: string
+          format: date-time
+
+    FailureExplainRequest:
+      type: object
+      required:
+        - failureType
+        - contextId
+      properties:
+        failureType:
+          type: string
+          enum: [negotiation_failed, matching_failed, settlement_failed, timeout, agent_error, human_rejected]
+          description: 失败类型
+          example: "negotiation_failed"
+        contextId:
+          type: string
+          description: 相关的流程 ID（negotiationId / demandId / dealId）
+          example: "neg-001"
+        details:
+          type: object
+          description: 失败详情
+          example:
+            lastAction: "venue rejected split 20%"
+            reason: "split too low"
+            duration: "3h"
+
+    NextStepRequest:
+      type: object
+      required:
+        - currentState
+      properties:
+        currentState:
+          type: string
+          description: 当前状态描述
+          example: "需求已聚合，等待匹配"
+        userId:
+          type: string
+          description: 用户 ID（可选，返回个性化建议）
+
+    NextStepResponse:
+      type: object
+      properties:
+        suggestion:
+          type: string
+          description: 建议的下一步操作
+          example: "增加心愿金额以提高匹配成功率"
+        actionLabel:
+          type: string
+          description: 操作按钮文案
+          example: "增加金额"
+        actionUrl:
+          type: string
+          description: 操作链接（可选）
+        alternativeSuggestions:
+          type: array
+          items:
+            type: string
+          description: 备选方案
+          example:
+            - "搜索其他音乐人"
+            - "查看当前匹配进度"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

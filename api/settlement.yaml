@@ -1,0 +1,291 @@
+openapi: 3.0.0
+info:
+  title: WishLive Settlement API
+  version: 1.0.0
+  description: 区块链结算服务 —— 托管创建、资金释放、门票 NFT 铸造
+  x-wishlive-note: >
+    所有操作在 Hardhat Localnet 上执行。
+    Business logic off-chain, financial execution on-chain.
+
+servers:
+  - url: http://localhost:3003
+    description: 本地开发
+
+paths:
+  /settlement/escrow:
+    post:
+      summary: Create Escrow
+      description: 创建资金托管合约，锁定观众预付款
+      operationId: createEscrow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEscrowRequest'
+      responses:
+        '200':
+          description: Escrow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrowResponse'
+        '400':
+          description: Invalid deal
+
+  /settlement/release:
+    post:
+      summary: Release Funds
+      description: 人工确认后，释放托管资金给音乐人和场地方
+      operationId: releaseFunds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseFundsRequest'
+      responses:
+        '200':
+          description: Funds released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          description: Human confirmation required
+
+  /settlement/mint:
+    post:
+      summary: Mint Ticket NFT
+      description: 铸造事件门票 NFT，发放给参与的观众
+      operationId: mintTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MintTicketRequest'
+      responses:
+        '200':
+          description: Ticket minted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+
+  /settlement/ticket/{tokenId}:
+    get:
+      summary: Get Ticket Info
+      description: 查询已铸造的门票信息
+      operationId: getTicket
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "1"
+      responses:
+        '200':
+          description: Ticket metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketInfo'
+        '404':
+          description: Ticket not found
+
+  /settlement/transaction/{txHash}:
+    get:
+      summary: Get Transaction Status
+      description: 查询区块链交易状态
+      operationId: getTransaction
+      parameters:
+        - name: txHash
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "0x..."
+      responses:
+        '200':
+          description: Transaction status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionInfo'
+
+components:
+  schemas:
+    CreateEscrowRequest:
+      type: object
+      required:
+        - dealId
+        - totalAmount
+        - participants
+      properties:
+        dealId:
+          type: string
+          description: 成交 deal ID
+          example: "deal-uuid"
+        totalAmount:
+          type: number
+          description: 总锁定金额 (USDT)
+          example: 10000
+        participants:
+          type: array
+          description: 资金接收方
+          items:
+            type: object
+            properties:
+              agentId:
+                type: string
+              wallet:
+                type: string
+              share:
+                type: integer
+                description: 分成百分比
+          example:
+            - agentId: "agent:musician:001"
+              wallet: "0x..."
+              share: 70
+            - agentId: "agent:venue:002"
+              wallet: "0x..."
+              share: 30
+        conditions:
+          type: object
+          description: 释放条件
+          properties:
+            humanConfirmed:
+              type: boolean
+              default: false
+            eventDate:
+              type: string
+              format: date
+
+    EscrowResponse:
+      type: object
+      properties:
+        escrowId:
+          type: string
+          description: 托管合约 ID
+          example: "escrow-uuid"
+        contractAddress:
+          type: string
+          description: 链上合约地址
+          example: "0x..."
+        txHash:
+          type: string
+          description: 创建交易的哈希
+          example: "0x..."
+
+    ReleaseFundsRequest:
+      type: object
+      required:
+        - escrowId
+        - confirmedBy
+      properties:
+        escrowId:
+          type: string
+        confirmedBy:
+          type: string
+          description: 确认人 agentId
+        signature:
+          type: string
+          description: 人工确认签名
+
+    MintTicketRequest:
+      type: object
+      required:
+        - dealId
+        - ownerWallet
+        - metadata
+      properties:
+        dealId:
+          type: string
+        ownerWallet:
+          type: string
+          description: 观众钱包地址
+          example: "0x..."
+        metadata:
+          $ref: '#/components/schemas/TicketMetadata'
+
+    TicketMetadata:
+      type: object
+      properties:
+        eventName:
+          type: string
+          example: "张摇滚上海现场"
+        date:
+          type: string
+          format: date
+          example: "2025-07-15"
+        venue:
+          type: string
+          example: "上海MAO Livehouse"
+        genre:
+          type: string
+          example: "rock"
+        ticketType:
+          type: string
+          enum: [GENERAL, VIP]
+        imageUri:
+          type: string
+          format: uri
+          description: IPFS 或本地图片 URL
+
+    TicketResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        txHash:
+          type: string
+        metadataUri:
+          type: string
+
+    TicketInfo:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        dealId:
+          type: string
+        ownerWallet:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/TicketMetadata'
+        mintedAt:
+          type: string
+          format: date-time
+
+    TransactionResponse:
+      type: object
+      properties:
+        txHash:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, failed]
+        blockNumber:
+          type: integer
+
+    TransactionInfo:
+      type: object
+      properties:
+        txHash:
+          type: string
+        contractName:
+          type: string
+          example: "Escrow"
+        method:
+          type: string
+          example: "releaseFunds"
+        status:
+          type: string
+          enum: [pending, confirmed, failed]
+        blockNumber:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time

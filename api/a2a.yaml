@@ -1,0 +1,362 @@
+openapi: 3.0.0
+info:
+  title: WishLive A2A Communication API
+  version: 1.0.0
+  description: Agent-to-Agent 通信协议，基于 Google A2A Protocol 消息格式
+  x-wishlive-note: >
+    传输层使用 Redis Streams（非 HTTP/gRPC），此 OpenAPI 文档定义消息格式与端点逻辑。
+    点对点通信走 stream agent.task，广播走各事件 stream。
+
+servers:
+  - url: redis://wishlive
+    description: Redis Streams 传输层（非 HTTP）
+
+paths:
+  /a2a/send:
+    post:
+      summary: Send A2A Message
+      description: |
+        向目标 Agent 发送 A2A 消息。
+        传输层：Redis Stream `agent.task`，targetAgentId 路由。
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageEnvelope'
+      responses:
+        '200':
+          description: Message queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /a2a/task:
+    post:
+      summary: Execute Task / Skill
+      description: 委托目标 Agent 执行一个技能任务
+      operationId: executeTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskRequest'
+      responses:
+        '200':
+          description: Task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+
+  /a2a/reply:
+    post:
+      summary: Reply to Task
+      description: 对收到的 Task 回复结果
+      operationId: replyTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskReply'
+      responses:
+        '200':
+          description: Reply accepted
+
+  /a2a/proposal:
+    post:
+      summary: Send Negotiation Proposal
+      description: 发起协商提案（Musician ↔ Venue）
+      operationId: sendProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalMessage'
+      responses:
+        '200':
+          description: Proposal delivered
+
+  /a2a/counter-proposal:
+    post:
+      summary: Send Counter Proposal
+      description: 对提案发送反提案
+      operationId: sendCounterProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposalMessage'
+      responses:
+        '200':
+          description: Counter-proposal delivered
+
+  /a2a/accept:
+    post:
+      summary: Accept Proposal
+      description: 接受当前提案，协商结束
+      operationId: acceptProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptMessage'
+      responses:
+        '200':
+          description: Proposal accepted
+
+  /a2a/reject:
+    post:
+      summary: Reject Proposal
+      description: 拒绝当前提案
+      operationId: rejectProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectMessage'
+      responses:
+        '200':
+          description: Proposal rejected
+
+  /a2a/history/{conversationId}:
+    get:
+      summary: Get Conversation History
+      description: 获取与某个 Agent 的通信历史
+      operationId: getConversationHistory
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "conv:musician:001-venue:002"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Conversation history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId:
+                    type: string
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessageEnvelope'
+
+components:
+  schemas:
+    MessageEnvelope:
+      type: object
+      required:
+        - messageId
+        - conversationId
+        - from
+        - to
+        - type
+        - timestamp
+      properties:
+        messageId:
+          type: string
+          format: uuid
+          description: 消息唯一 ID
+          example: "msg-a1b2c3d4"
+        conversationId:
+          type: string
+          description: 会话/协商 ID
+          example: "conv:musician:001-venue:002"
+        from:
+          type: string
+          description: 发送方 agentId
+          example: "agent:musician:001"
+        to:
+          type: string
+          description: 接收方 agentId
+          example: "agent:venue:002"
+        type:
+          type: string
+          enum: [TASK, EVENT, PROPOSAL, COUNTER_PROPOSAL, ACCEPT, REJECT, INTERRUPT, RESUME, NOTIFICATION]
+        payload:
+          type: object
+          description: 消息负载，按 type 不同有不同结构
+        timestamp:
+          type: string
+          format: date-time
+        workflowId:
+          type: string
+          description: 关联的流程 ID
+          example: "wf-123"
+        sessionId:
+          type: string
+          description: 会话 ID
+          example: "session-uuid"
+        signature:
+          type: string
+          description: EIP-191 personal_sign 签名, signPayload = { messageId, from, to, type, timestamp, payloadHash }
+          example: "0x..."
+
+    MessageResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+        status:
+          type: string
+          enum: [queued, delivered, failed]
+        deliveredAt:
+          type: string
+          format: date-time
+
+    TaskRequest:
+      type: object
+      required:
+        - taskId
+        - targetAgentId
+        - skill
+      properties:
+        taskId:
+          type: string
+          format: uuid
+        targetAgentId:
+          type: string
+          description: 目标执行 Agent
+        skill:
+          type: string
+          description: 要执行的技能 ID
+          example: "check_availability"
+        params:
+          type: object
+          description: 技能参数
+          example:
+            date: "2025-07-15"
+        contextId:
+          type: string
+          description: 会话/协商上下文 ID
+
+    TaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        acceptedAt:
+          type: string
+          format: date-time
+
+    TaskStatus:
+      type: string
+      enum: [SUBMITTED, WORKING, COMPLETED, FAILED, CANCELED]
+
+    TaskReply:
+      type: object
+      required:
+        - taskId
+        - status
+      properties:
+        taskId:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        result:
+          type: object
+          description: 任务执行结果
+        error:
+          type: string
+          description: 失败原因
+
+    ProposalMessage:
+      type: object
+      required:
+        - negotiationId
+        - from
+        - to
+        - type
+      properties:
+        negotiationId:
+          type: string
+          description: 协商 ID
+        from:
+          type: string
+        to:
+          type: string
+        type:
+          type: string
+          enum: [INITIAL, COUNTER]
+        venueFee:
+          type: number
+          description: 场地费 (USDT)
+          example: 5000
+        splitPercentage:
+          type: integer
+          description: 收入分成百分比
+          example: 20
+        schedule:
+          $ref: '#/components/schemas/Schedule'
+        payload:
+          type: object
+          description: 扩展参数
+
+    Schedule:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2025-07-15"
+        startTime:
+          type: string
+          example: "19:00"
+        endTime:
+          type: string
+          example: "23:00"
+
+    AcceptMessage:
+      type: object
+      required:
+        - negotiationId
+        - proposalId
+        - from
+      properties:
+        negotiationId:
+          type: string
+        proposalId:
+          type: string
+        from:
+          type: string
+
+    RejectMessage:
+      type: object
+      required:
+        - negotiationId
+        - proposalId
+        - from
+      properties:
+        negotiationId:
+          type: string
+        proposalId:
+          type: string
+        from:
+          type: string
+        reason:
+          type: string

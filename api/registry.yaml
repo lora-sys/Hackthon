@@ -1,0 +1,379 @@
+openapi: 3.0.0
+info:
+  title: WishLive Registry API
+  version: 1.0.0
+  description: 能力感知 Agent 注册与发现服务
+
+servers:
+  - url: http://localhost:3001
+    description: 本地开发
+
+paths:
+  /registry/register:
+    post:
+      summary: Register Agent
+      operationId: registerAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegistration'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRegistrationResponse'
+        '409':
+          description: Agent already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /registry/heartbeat:
+    post:
+      summary: Agent Heartbeat
+      operationId: agentHeartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+      responses:
+        '200':
+          description: Heartbeat acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+        '404':
+          description: Agent not found
+
+  /registry/search:
+    post:
+      summary: Search Agents
+      operationId: searchAgents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /registry/{agentId}:
+    get:
+      summary: Get Agent Card
+      operationId: getAgentCard
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "agent:musician:001"
+      responses:
+        '200':
+          description: Agent Card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCard'
+        '404':
+          description: Agent not found
+
+  /registry/skills:
+    get:
+      summary: Search Skills
+      operationId: searchSkills
+      parameters:
+        - name: tag
+          in: query
+          schema:
+            type: string
+          example: "negotiation"
+        - name: agentType
+          in: query
+          schema:
+            type: string
+            enum: [musician, venue, audience]
+      responses:
+        '200':
+          description: Skills matching query
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentSkill'
+
+  /registry/tags:
+    get:
+      summary: Search Tags
+      operationId: searchTags
+      parameters:
+        - name: prefix
+          in: query
+          schema:
+            type: string
+          example: "genre"
+        - name: value
+          in: query
+          schema:
+            type: string
+          example: "rock"
+      responses:
+        '200':
+          description: Tags matching query
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    value:
+                      type: string
+                    agentCount:
+                      type: integer
+
+components:
+  schemas:
+    AgentRegistration:
+      type: object
+      required:
+        - agentId
+        - agentType
+        - agentCard
+      properties:
+        agentId:
+          type: string
+          description: Unique agent identifier
+          example: "agent:musician:001"
+        agentType:
+          type: string
+          enum: [musician, venue, audience, demand, matching, settlement, concierge]
+        agentCard:
+          $ref: '#/components/schemas/AgentCard'
+        walletAddress:
+          type: string
+          description: Blockchain wallet address
+          example: "0x..."
+
+    AgentRegistrationResponse:
+      type: object
+      properties:
+        agentId:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, REGISTERED]
+        registeredAt:
+          type: string
+          format: date-time
+
+    HeartbeatRequest:
+      type: object
+      required:
+        - agentId
+      properties:
+        agentId:
+          type: string
+        status:
+          type: string
+          enum: [ONLINE, BUSY, OFFLINE]
+        load:
+          type: integer
+          description: Current task load (0-100)
+
+    HeartbeatResponse:
+      type: object
+      properties:
+        acknowledged:
+          type: boolean
+        ttl:
+          type: integer
+          description: Heartbeat expiry in seconds
+
+    SearchRequest:
+      type: object
+      properties:
+        agentType:
+          type: string
+          enum: [musician, venue, audience, demand, matching, settlement, concierge]
+        tags:
+          type: object
+          description: Key-value tag filters
+          example:
+            genre: "rock"
+            city: "shanghai"
+        skills:
+          type: array
+          items:
+            type: string
+          description: Required skill IDs
+          example: ["check_availability"]
+        status:
+          type: string
+          enum: [ONLINE, BUSY, OFFLINE]
+        limit:
+          type: integer
+          default: 10
+        offset:
+          type: integer
+          default: 0
+
+    SearchResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentCardSummary'
+
+    AgentCard:
+      type: object
+      required:
+        - name
+        - description
+        - version
+        - supported_interfaces
+        - capabilities
+        - skills
+      properties:
+        name:
+          type: string
+          example: "张摇滚"
+        description:
+          type: string
+          example: "上海地区摇滚吉他手，擅长现场表演"
+        version:
+          type: string
+          example: "1.0.0"
+        provider:
+          type: object
+          properties:
+            organization:
+              type: string
+              default: "WishLive"
+            url:
+              type: string
+              format: uri
+              default: "https://wishlive.io"
+        supported_interfaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentInterface'
+        capabilities:
+          type: object
+          properties:
+            streaming:
+              type: boolean
+              default: false
+            push_notifications:
+              type: boolean
+              default: true
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSkill'
+        default_input_modes:
+          type: array
+          items:
+            type: string
+            enum: [text/plain, application/json]
+        default_output_modes:
+          type: array
+          items:
+            type: string
+            enum: [text/plain, application/json]
+        security_schemes:
+          type: object
+          properties:
+            did:
+              type: string
+              example: "did:wishlive:0x..."
+        tags:
+          type: object
+          description: Custom searchable tags (genre, city, capacity, role)
+          example:
+            role: "musician"
+            genre: "rock"
+            city: "shanghai"
+
+    AgentCardSummary:
+      type: object
+      properties:
+        agentId:
+          type: string
+        name:
+          type: string
+        agentType:
+          type: string
+        status:
+          type: string
+        tags:
+          type: object
+        reputationScore:
+          type: integer
+        lastHeartbeat:
+          type: string
+          format: date-time
+
+    AgentInterface:
+      type: object
+      properties:
+        url:
+          type: string
+          example: "redis://agent:musician:001"
+        protocol_binding:
+          type: string
+          default: "HTTP+JSON"
+        protocol_version:
+          type: string
+          default: "1.0"
+
+    AgentSkill:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "check_availability"
+        name:
+          type: string
+          example: "档期检查"
+        description:
+          type: string
+          example: "检查音乐人在指定日期的档期可用性"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["availability", "schedule"]
+        examples:
+          type: array
+          items:
+            type: string
+          example: ["2025-07-15 是否可用？"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
