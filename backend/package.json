@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --max-warnings=0",
@@ -11,6 +14,7 @@
   },
   "dependencies": {
     "@wishlive/shared": "workspace:*",
+    "redis": "6.0.0",
     "zod": "4.1.13"
   },
   "devDependencies": {

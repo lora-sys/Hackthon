@@ -1,4 +1,5 @@
-import { AgentCardSchema } from "@wishlive/shared";
+export * from "./services/events";
+export * from "./services/registry";
 
 export const serviceName = "wishlive-backend";
 
@@ -8,8 +9,4 @@ export function createHealthPayload() {
     status: "ok",
     stack: ["registry", "event", "workflow", "settlement", "concierge"]
   } as const;
-}
-
-export function validateAgentCard(input: unknown) {
-  return AgentCardSchema.parse(input);
 }

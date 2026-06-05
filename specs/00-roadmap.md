@@ -117,7 +117,7 @@ Test gate:
 - Registry integration tests pass
 - Redis contains register and heartbeat lifecycle events
 
-Status: `TODO`.
+Status: `REVIEW`.
 
 ## Phase 5 - Live Topology Dashboard
 

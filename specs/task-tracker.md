@@ -13,9 +13,9 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P3-01 | Scaffold | Create frontend/backend/contracts/shared scaffold | REVIEW | P2 | lint/typecheck/test/build pass | Phase 3 PR |
 | P3-02 | Scaffold | Add shared Zod schemas | REVIEW | P3-01 | schema smoke tests pass | Phase 3 PR |
 | P3-03 | Scaffold | Browser smoke test homepage | REVIEW | P3-01 | no critical console errors | `/tmp/wishlive-phase3-home.png` |
-| P4-01 | Runtime | Implement AgentCard and BaseAgent lifecycle | TODO | P3 | unit and integration tests pass | Pending |
-| P4-02 | Registry | Implement register/search/heartbeat/list APIs | TODO | P4-01 | Registry API tests pass | Pending |
-| P4-03 | Registry | Seed 57+ agents with heartbeat events | TODO | P4-02 | online count >= 57 | Pending |
+| P4-01 | Runtime | Implement AgentCard and BaseAgent lifecycle | REVIEW | P3 | unit and integration tests pass | Phase 4 PR |
+| P4-02 | Registry | Implement register/search/heartbeat/list APIs | REVIEW | P4-01 | Registry API tests pass | Phase 4 PR |
+| P4-03 | Registry | Seed 57+ agents with heartbeat events | REVIEW | P4-02 | online count >= 57 | Browser snapshot of `/api/agents/online`; Redis `agent.lifecycle` evidence |
 | P5-01 | Dashboard | Build Live Dashboard primary screen | TODO | P4 | browser screenshot evidence | Pending |
 | P5-02 | Topology | Build React Flow topology with 57+ nodes | TODO | P5-01 | node count >= 57 in browser | Pending |
 | P5-03 | Dashboard | Add metrics, event stream, negotiation, blockchain panels | TODO | P5-01 | 20 events and latency < 2s | Pending |

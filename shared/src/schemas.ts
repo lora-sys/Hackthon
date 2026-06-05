@@ -31,6 +31,44 @@ export const AgentCardSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 });
 
+export const AgentRecordSchema = z.object({
+  card: AgentCardSchema,
+  status: AgentStatusSchema,
+  registeredAt: z.number().int().positive(),
+  lastHeartbeatAt: z.number().int().positive().nullable()
+});
+
+export const RegistryRegisterResponseSchema = z.object({
+  agentId: z.string().min(1),
+  status: AgentStatusSchema
+});
+
+export const RegistryHeartbeatRequestSchema = z.object({
+  agentId: z.string().min(1)
+});
+
+export const RegistryHeartbeatResponseSchema = z.object({
+  status: AgentStatusSchema,
+  timestamp: z.number().int().positive()
+});
+
+export const RegistrySearchRequestSchema = z.object({
+  genre: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  capacity: z.number().int().positive().optional(),
+  type: AgentTypeSchema.optional()
+});
+
+export const RegistryListRequestSchema = z.object({
+  status: AgentStatusSchema.optional(),
+  type: AgentTypeSchema.optional()
+});
+
+export const RegistryOnlineCountSchema = z.object({
+  count: z.number().int().nonnegative(),
+  byType: z.record(AgentTypeSchema, z.number().int().nonnegative())
+});
+
 export const EventEnvelopeSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
@@ -67,7 +105,10 @@ export const A2AMessageSchema = z.object({
 });
 
 export type AgentCard = z.infer<typeof AgentCardSchema>;
+export type AgentRecord = z.infer<typeof AgentRecordSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;
 export type A2AMessage = z.infer<typeof A2AMessageSchema>;
+export type RegistryListRequest = z.infer<typeof RegistryListRequestSchema>;
+export type RegistrySearchRequest = z.infer<typeof RegistrySearchRequestSchema>;
