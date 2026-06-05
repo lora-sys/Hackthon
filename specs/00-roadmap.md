@@ -97,7 +97,7 @@ Test gate:
 - `pnpm build`
 - browser opens local homepage with no critical console errors
 
-Status: `TODO`.
+Status: `REVIEW`.
 
 ## Phase 4 - Agent Runtime And Registry
 
@@ -199,4 +199,3 @@ Test gate:
 - browser end-to-end demo passes
 
 Status: `TODO`.
-
