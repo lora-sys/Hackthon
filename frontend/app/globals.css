@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  --background: #131315;
+  --surface: #201f22;
+  --primary: #ddb7ff;
+  --secondary: #adc6ff;
+  --tertiary: #ffb0cd;
+  --text: #e5e1e4;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", "Sora", sans-serif;
+}
