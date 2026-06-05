@@ -1,9 +1,9 @@
-version: "3.9"
-
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  hardhat_cache:
     driver: local
 
 services:
@@ -39,3 +39,27 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  hardhat:
+    build:
+      context: ./docker/hardhat
+    container_name: wishlive-hardhat
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+    volumes:
+      - hardhat_cache:/app/cache
+    environment:
+      HARDHAT_CHAIN_ID: "31337"
+    command: ["npx", "hardhat", "node", "--hostname", "0.0.0.0", "--port", "8545"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]})}).then(r=>r.json()).then(j=>process.exit(j.result==='0x7a69'?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10

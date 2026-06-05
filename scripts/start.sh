@@ -29,27 +29,8 @@ check_docker() {
 
 check_env() {
   if [ ! -f .env ]; then
-    warn ".env 不存在，创建默认配置..."
-    cat > .env << 'EOF'
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=wishlive
-POSTGRES_PASSWORD=wishlive_dev
-POSTGRES_DB=wishlive
-DATABASE_URL=postgresql://wishlive:wishlive_dev@localhost:5432/wishlive
-
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_URL=redis://localhost:6379
-
-RPC_URL=http://localhost:8545
-CHAIN_ID=31337
-
-REGISTRY_PORT=3001
-SETTLEMENT_PORT=3003
-CONCIERGE_PORT=3004
-FRONTEND_PORT=3000
-EOF
+    warn ".env 不存在，从 .env.example 创建默认配置..."
+    cp .env.example .env
     info ".env 已创建"
   fi
 }
@@ -59,7 +40,7 @@ case "${1:-up}" in
     check_docker
     check_env
 
-    info "启动 PostgreSQL + Redis..."
+    info "启动 PostgreSQL + Redis + Hardhat Localnet..."
     docker compose up -d
 
     info "等待 PostgreSQL..."
@@ -74,9 +55,19 @@ case "${1:-up}" in
     done
     info "Redis 就绪 ✅"
 
+    info "等待 Hardhat Localnet..."
+    until curl -fsS -X POST \
+      -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+      http://localhost:8545 &>/dev/null; do
+      sleep 1
+    done
+    info "Hardhat Localnet 就绪 ✅"
+
     echo ""
     echo "  PostgreSQL    :5432  | 数据卷: postgres_data"
     echo "  Redis         :6379  | 数据卷: redis_data"
+    echo "  Hardhat RPC   :8545  | chainId: 31337"
     echo ""
     echo "  ./scripts/start.sh down   停止服务"
     echo "  ./scripts/start.sh logs   查看日志"
@@ -119,7 +110,7 @@ case "${1:-up}" in
   *)
     echo "用法: $0 [up|down|logs|reset|status]"
     echo ""
-    echo "  up      启动 PostgreSQL + Redis (默认)"
+    echo "  up      启动 PostgreSQL + Redis + Hardhat (默认)"
     echo "  down    停止服务"
     echo "  logs    查看日志"
     echo "  reset   清除数据并重建"

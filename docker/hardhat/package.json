@@ -1,0 +1,10 @@
+{
+  "name": "wishlive-hardhat-localnet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hardhat local JSON-RPC node for WishLive development.",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "hardhat": "2.22.19"
+  }
+}
