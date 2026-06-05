@@ -10,9 +10,9 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P2-01 | Specs | Add specs directory rules | IN_PROGRESS | P1 | README includes status and evidence rules | This PR |
 | P2-02 | Specs | Add staged roadmap | IN_PROGRESS | P2-01 | 8 phases with measurable gates | This PR |
 | P2-03 | Specs | Add acceptance matrix | IN_PROGRESS | P2-02 | Matrix has one row per phase | This PR |
-| P3-01 | Scaffold | Create frontend/backend/contracts/shared scaffold | TODO | P2 | lint/typecheck/test/build pass | Pending |
-| P3-02 | Scaffold | Add shared Zod schemas | TODO | P3-01 | schema smoke tests pass | Pending |
-| P3-03 | Scaffold | Browser smoke test homepage | TODO | P3-01 | no critical console errors | Pending |
+| P3-01 | Scaffold | Create frontend/backend/contracts/shared scaffold | REVIEW | P2 | lint/typecheck/test/build pass | Phase 3 PR |
+| P3-02 | Scaffold | Add shared Zod schemas | REVIEW | P3-01 | schema smoke tests pass | Phase 3 PR |
+| P3-03 | Scaffold | Browser smoke test homepage | REVIEW | P3-01 | no critical console errors | `/tmp/wishlive-phase3-home.png` |
 | P4-01 | Runtime | Implement AgentCard and BaseAgent lifecycle | TODO | P3 | unit and integration tests pass | Pending |
 | P4-02 | Registry | Implement register/search/heartbeat/list APIs | TODO | P4-01 | Registry API tests pass | Pending |
 | P4-03 | Registry | Seed 57+ agents with heartbeat events | TODO | P4-02 | online count >= 57 | Pending |
@@ -28,4 +28,3 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P8-01 | Concierge | Implement global Concierge assistant | TODO | P7 | answers workflow status | Pending |
 | P8-02 | Observability | Integrate AI SDK telemetry and Langfuse | TODO | P8-01 | trace searchable by workflow_id | Pending |
 | P8-03 | Demo | Validate 5-minute end-to-end demo | TODO | P8-02 | browser E2E passes | Pending |
-
