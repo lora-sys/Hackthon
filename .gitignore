@@ -1,3 +1,11 @@
 .atomcode
-
-
+node_modules/
+.next/
+dist/
+coverage/
+cache/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+pnpm-debug.log*
