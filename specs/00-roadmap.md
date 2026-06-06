@@ -140,7 +140,7 @@ Test gate:
 - event stream shows at least 20 events
 - desktop and mobile screenshots are recorded
 
-Status: `TODO`.
+Status: `REVIEW`.
 
 ## Phase 6 - Wish, Demand, Matching
 

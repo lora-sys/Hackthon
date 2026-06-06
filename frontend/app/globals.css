@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
 :root {
   --background: #131315;
@@ -19,4 +20,8 @@ body {
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", "Sora", sans-serif;
+}
+
+.react-flow__attribution {
+  display: none;
 }
