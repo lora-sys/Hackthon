@@ -11,6 +11,7 @@ import {
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
 import type { RegistryService } from "../registry";
+import { AgentRuntimeService } from "../runtime";
 import { matchDemand } from "./matching-engine";
 
 const MIN_THRESHOLD = 10;
@@ -98,6 +99,27 @@ export class WishWorkflowService {
   private async processWishWithAgents(wish: Wish, request: WishCreateRequest, now: number) {
     const cohortKey = this.findCohortKey(wish);
     const cohortWishes = this.activeWishesForCohort(wish);
+    const runtime = new AgentRuntimeService(this.registry, this.eventBus);
+    await runtime.run({
+      agentId: "agent:business:003",
+      workflowId: `workflow:${wish.wishId}`,
+      conversationId: `wish:${cohortKey}`,
+      userMessage: `Process audience wish for ${wish.artistName} in ${wish.city}`,
+      tools: [
+        {
+          name: "update_reputation",
+          input: {
+            agentId: "agent:business:003",
+            delta: 0,
+            reason: "wish processed"
+          }
+        }
+      ],
+      metadata: {
+        wishId: wish.wishId,
+        cohortKey
+      }
+    });
     await this.publish(WISH_STREAM, "wish.aggregated", "agent:business:003", {
       wishId: wish.wishId,
       cohortKey,
@@ -122,6 +144,26 @@ export class WishWorkflowService {
       count: cohortWishes.length,
       threshold: MIN_THRESHOLD,
       agentSkill: "check_threshold"
+    });
+    await runtime.run({
+      agentId: "agent:business:004",
+      workflowId: `workflow:${cohortKey}`,
+      conversationId: `demand:${cohortKey}`,
+      userMessage: `Create demand after ${cohortWishes.length} wishes reached threshold`,
+      tools: [
+        {
+          name: "update_reputation",
+          input: {
+            agentId: "agent:business:004",
+            delta: 0,
+            reason: "demand threshold reached"
+          }
+        }
+      ],
+      metadata: {
+        cohortKey,
+        count: cohortWishes.length
+      }
     });
 
     demand = DemandSchema.parse({
@@ -162,6 +204,40 @@ export class WishWorkflowService {
       genre: demand.genre,
       city: demand.city,
       agentSkill: "rank_candidates"
+    });
+    const runtime = new AgentRuntimeService(this.registry, this.eventBus);
+    await runtime.run({
+      agentId: "agent:business:005",
+      workflowId: `workflow:${demand.demandId}`,
+      conversationId: `matching:${demand.demandId}`,
+      userMessage: `Discover musician and venue agents for ${demand.genre} in ${demand.city}`,
+      tools: [
+        {
+          name: "discover_agents",
+          input: {
+            type: "musician",
+            skill: "check_availability",
+            genre: demand.genre,
+            city: demand.city,
+            date: demand.preferredDate,
+            limit: 3
+          }
+        },
+        {
+          name: "discover_agents",
+          input: {
+            type: "venue",
+            skill: "check_capacity",
+            city: demand.city,
+            capacity: Math.max(demand.wishCount, 200),
+            date: demand.preferredDate,
+            limit: 3
+          }
+        }
+      ],
+      metadata: {
+        demandId: demand.demandId
+      }
     });
 
     const matching = await matchDemand({

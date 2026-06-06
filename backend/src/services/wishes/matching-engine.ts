@@ -15,13 +15,33 @@ export async function matchDemand(input: {
 }): Promise<MatchingResult> {
   await input.registry.ensureSeeded();
 
-  const musicianPool = input.registry.list({ type: "musician" });
-  const venuePool = input.registry.list({ type: "venue" });
+  const musicianDiscovery = await input.registry.discover({
+    requesterAgentId: "agent:business:005",
+    workflowId: `workflow:${input.demand.demandId}`,
+    conversationId: `matching:${input.demand.demandId}:musicians`,
+    type: "musician",
+    skill: "check_availability",
+    genre: input.demand.genre,
+    city: input.demand.city,
+    date: input.demand.preferredDate,
+    limit: 15
+  });
+  const venueDiscovery = await input.registry.discover({
+    requesterAgentId: "agent:business:005",
+    workflowId: `workflow:${input.demand.demandId}`,
+    conversationId: `matching:${input.demand.demandId}:venues`,
+    type: "venue",
+    skill: "check_capacity",
+    city: input.demand.city,
+    capacity: Math.max(input.demand.wishCount, 200),
+    date: input.demand.preferredDate,
+    limit: 10
+  });
 
   return {
     demandId: input.demand.demandId,
-    musicians: topCandidates(musicianPool, input.demand, "musician"),
-    venues: topCandidates(venuePool, input.demand, "venue"),
+    musicians: topCandidates(musicianDiscovery.agents, input.demand, "musician"),
+    venues: topCandidates(venueDiscovery.agents, input.demand, "venue"),
     createdAt: input.now ?? Date.now()
   };
 }

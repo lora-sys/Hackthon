@@ -13,6 +13,7 @@ import {
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
 import type { RegistryService } from "../registry";
+import { AgentRuntimeService } from "../runtime";
 import type { SettlementService } from "../settlement";
 
 const AGENT_TASK_STREAM = "agent.task";
@@ -135,6 +136,34 @@ export class NegotiationService {
     const proposal = this.findProposal(negotiation, request.proposalId);
     this.assertParticipant(negotiation, request.from);
     proposal.decision = "ACCEPTED";
+    const runtime = new AgentRuntimeService(this.registry, this.eventBus);
+    await runtime.run({
+      agentId: request.from,
+      workflowId: negotiation.workflowId,
+      conversationId: negotiation.conversationId,
+      userMessage: `Accept proposal ${proposal.proposalId} from ${proposal.senderAgentId}`,
+      tools: [
+        {
+          name: "accept_offer",
+          input: {
+            from: request.from,
+            proposalId: proposal.proposalId
+          }
+        },
+        {
+          name: "update_reputation",
+          input: {
+            agentId: request.from,
+            delta: 1,
+            reason: "accepted negotiated offer"
+          }
+        }
+      ],
+      metadata: {
+        negotiationId,
+        proposalId: proposal.proposalId
+      }
+    });
 
     const now = Date.now();
     const deal: Deal = {
@@ -311,6 +340,19 @@ export class NegotiationService {
     negotiation.status = "ACTIVE";
     negotiation.updatedAt = proposal.createdAt;
     this.negotiations.set(negotiation.negotiationId, negotiation);
+    const runtime = new AgentRuntimeService(this.registry, this.eventBus);
+    await runtime.run({
+      agentId: input.from,
+      workflowId: negotiation.workflowId,
+      conversationId: negotiation.conversationId,
+      userMessage: `${input.from} sends ${input.messageType} to ${input.to}`,
+      tools: runtimeToolsForProposal(input),
+      metadata: {
+        negotiationId: negotiation.negotiationId,
+        proposalId: proposal.proposalId,
+        messageType: input.messageType
+      }
+    });
 
     await this.publishA2A(negotiation, {
       sender: input.from,
@@ -403,6 +445,52 @@ export class NegotiationService {
       })
     );
   }
+}
+
+function runtimeToolsForProposal(input: {
+  from: string;
+  to: string;
+  terms: ProposalTerms;
+  messageType: A2AMessage["type"];
+}) {
+  if (input.messageType === "COUNTER_PROPOSAL") {
+    return [
+      {
+        name: "quote_price" as const,
+        input: {
+          agentId: input.from
+        }
+      },
+      {
+        name: "counter_offer" as const,
+        input: {
+          from: input.from,
+          to: input.to,
+          venueFee: input.terms.venueFee,
+          splitPercentage: input.terms.splitPercentage
+        }
+      }
+    ];
+  }
+
+  return [
+    {
+      name: "check_availability" as const,
+      input: {
+        agentId: input.from,
+        date: input.terms.schedule.date
+      }
+    },
+    {
+      name: "propose_offer" as const,
+      input: {
+        from: input.from,
+        to: input.to,
+        venueFee: input.terms.venueFee,
+        splitPercentage: input.terms.splitPercentage
+      }
+    }
+  ];
 }
 
 export class NegotiationError extends Error {

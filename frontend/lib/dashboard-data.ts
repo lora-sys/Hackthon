@@ -91,6 +91,11 @@ export function buildTopology(agents: AgentCard[]) {
   connectCluster(edges, grouped.venue, business[5]?.agent_id, "#fb923c");
   connectCluster(edges, grouped.manager, business[0]?.agent_id, "#60a5fa");
   connectCluster(edges, grouped.infrastructure, business[6]?.agent_id, "#cbd5e1");
+  agents
+    .filter((agent) => agent.managerAgentId)
+    .forEach((agent) => {
+      edges.push(flowEdge(agent.managerAgentId as string, agent.agent_id, agentTypeColor[agent.type]));
+    });
 
   return { nodes, edges };
 }

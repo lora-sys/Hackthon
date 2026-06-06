@@ -49,6 +49,9 @@ describe("negotiation and settlement workflow", () => {
     expect(eventBus.byType("a2a.counter_proposal")).toHaveLength(1);
     expect(eventBus.byType("a2a.accept")).toHaveLength(1);
     expect(eventBus.byType("deal.created")).toHaveLength(1);
+    expect(eventBus.byType("agent.tool_call").length).toBeGreaterThanOrEqual(6);
+    expect(eventBus.byType("agent.tool_result").length).toBeGreaterThanOrEqual(6);
+    expect(eventBus.byType("agent.message").length).toBeGreaterThanOrEqual(3);
 
     await expect(
       settlement.createEscrow(
