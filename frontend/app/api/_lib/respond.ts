@@ -1,4 +1,4 @@
-import { RegistryError } from "@wishlive/backend";
+import { RegistryError, WishWorkflowError } from "@wishlive/backend";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -8,6 +8,10 @@ export function json(data: unknown, status = 200) {
 
 export function errorResponse(error: unknown) {
   if (error instanceof RegistryError) {
+    return json({ error: error.message }, error.statusCode);
+  }
+
+  if (error instanceof WishWorkflowError) {
     return json({ error: error.message }, error.statusCode);
   }
 

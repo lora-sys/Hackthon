@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEventStream, buildTopology } from "./dashboard-data";
+import { buildTopology, formatStreamEvent } from "./dashboard-data";
 
 const agents = Array.from({ length: 57 }, (_, index) => ({
   agent_id: `agent:audience:${index.toString().padStart(3, "0")}`,
@@ -17,7 +17,25 @@ describe("dashboard data", () => {
     expect(buildTopology(agents).nodes).toHaveLength(57);
   });
 
-  it("builds at least 20 stream rows for the dashboard", () => {
-    expect(buildEventStream(agents)).toHaveLength(24);
+  it("formats Redis stream events for the dashboard", () => {
+    expect(
+      formatStreamEvent({
+        stream: "wish.events",
+        event: {
+          id: "event:1",
+          type: "wish.created",
+          source: "agent:audience:001",
+          timestamp: 1_789_000_000_000,
+          data: { wishId: "wish:1", city: "shanghai" },
+          metadata: { traceId: "trace:1", spanId: "span:1" }
+        }
+      })
+    ).toMatchObject({
+      id: "event:1",
+      stream: "wish.events",
+      type: "wish.created",
+      agent: "audience:001",
+      detail: "wishId:wish:1 · city:shanghai"
+    });
   });
 });

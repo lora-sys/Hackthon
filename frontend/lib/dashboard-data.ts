@@ -1,4 +1,4 @@
-import type { AgentCard, AgentType } from "@wishlive/shared";
+import type { AgentCard, AgentType, EventEnvelope } from "@wishlive/shared";
 import type { Edge, Node } from "@xyflow/react";
 
 export const agentTypeColor: Record<AgentType, string> = {
@@ -20,10 +20,17 @@ export const agentTypeLabel: Record<AgentType, string> = {
 };
 
 export type DashboardEvent = {
+  id: string;
   time: string;
   type: string;
   agent: string;
   detail: string;
+  stream?: string;
+};
+
+export type StreamEventPayload = {
+  stream: string;
+  event: EventEnvelope;
 };
 
 export function buildTopology(agents: AgentCard[]) {
@@ -88,28 +95,23 @@ export function buildTopology(agents: AgentCard[]) {
   return { nodes, edges };
 }
 
-export function buildEventStream(agents: AgentCard[]): DashboardEvent[] {
-  const eventTypes = [
-    "agent.registered",
-    "agent.heartbeat",
-    "wish.created",
-    "demand.created",
-    "matching.completed",
-    "negotiation.started",
-    "proposal.sent",
-    "counterproposal.sent",
-    "deal.created",
-    "show.confirmed",
-    "escrow.created",
-    "ticket.minted"
-  ];
+export function formatStreamEvent(payload: StreamEventPayload): DashboardEvent {
+  const event = payload.event;
+  const time = new Date(event.timestamp).toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
 
-  return agents.slice(0, 24).map((agent, index) => ({
-    time: `14:${String(32 + Math.floor(index / 2)).padStart(2, "0")}:${String((index * 7) % 60).padStart(2, "0")}`,
-    type: eventTypes[index % eventTypes.length] ?? "agent.heartbeat",
-    agent: agent.agent_id.replace("agent:", ""),
-    detail: eventDetail(index)
-  }));
+  return {
+    id: event.id,
+    stream: payload.stream,
+    time,
+    type: event.type,
+    agent: event.source.replace("agent:", ""),
+    detail: eventDetail(event)
+  };
 }
 
 export function metricCards(onlineCount: number) {
@@ -166,20 +168,11 @@ function connectCluster(edges: Edge[], agents: AgentCard[], target: string | und
   });
 }
 
-function eventDetail(index: number) {
-  const details = [
-    "Agent card indexed",
-    "Heartbeat accepted",
-    "Wish submitted",
-    "Demand threshold reached",
-    "Top 3 candidates ranked",
-    "Session opened",
-    "Venue fee proposed",
-    "Revenue split countered",
-    "Deal pending confirmation",
-    "Human confirmed",
-    "Escrow created",
-    "Ticket NFT minted"
-  ];
-  return details[index % details.length] ?? "Event processed";
+function eventDetail(event: EventEnvelope) {
+  const parts = Object.entries(event.data)
+    .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
+    .slice(0, 3)
+    .map(([key, value]) => `${key}:${String(value)}`);
+
+  return parts.length > 0 ? parts.join(" · ") : "Event processed";
 }
