@@ -402,7 +402,7 @@ async function postWish(values: WishFormValues) {
   });
 
   if (!response.ok) {
-    const body = (await response.json()) as { error?: string };
+    const body = await readErrorBody(response);
     throw new Error(body.error ?? "Wish submission failed");
   }
 
@@ -463,7 +463,7 @@ async function startAgentNegotiation(demand: Demand) {
 async function fetchJson(url: string) {
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
-    const body = (await response.json()) as { error?: string };
+    const body = await readErrorBody(response);
     throw new Error(body.error ?? `GET ${url} failed`);
   }
   return response.json();
@@ -476,10 +476,22 @@ async function postJson(url: string, body: unknown) {
     body: JSON.stringify(body)
   });
   if (!response.ok) {
-    const payload = (await response.json()) as { error?: string };
+    const payload = await readErrorBody(response);
     throw new Error(payload.error ?? `POST ${url} failed`);
   }
   return response.json();
+}
+
+async function readErrorBody(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+  try {
+    return JSON.parse(text) as { error?: string };
+  } catch {
+    return { error: text };
+  }
 }
 
 function isWishWorkflowStream(payload: StreamEventPayload) {

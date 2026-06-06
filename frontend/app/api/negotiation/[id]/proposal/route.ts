@@ -8,8 +8,16 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    return json(await getNegotiationService().sendProposal(id, await request.json()), 201);
+    return json(await getNegotiationService().sendProposal(safeDecode(id), await request.json()), 201);
   } catch (error) {
     return errorResponse(error);
+  }
+}
+
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
