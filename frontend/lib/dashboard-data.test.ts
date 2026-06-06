@@ -7,8 +7,35 @@ const agents = Array.from({ length: 57 }, (_, index) => ({
   wallet: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   type: "audience" as const,
   skills: ["submit_wish"],
+  skill_details: [
+    {
+      id: "submit_wish",
+      name: "Submit Wish",
+      description: "Submit a wish",
+      tags: ["wish"],
+      examples: ["submit_wish"]
+    }
+  ],
   tags: [],
   reputation: 70,
+  supported_interfaces: [
+    {
+      url: `redis://agent.task/agent:audience:${index.toString().padStart(3, "0")}`,
+      protocol_binding: "Redis+JSON",
+      protocol_version: "1.0",
+      tenant: "wishlive"
+    }
+  ],
+  capabilities: {
+    streaming: true,
+    push_notifications: false,
+    tool_calls: true,
+    a2a_discovery: true
+  },
+  default_input_modes: ["application/json", "text/plain"],
+  default_output_modes: ["application/json", "text/plain"],
+  listenStreams: ["wish.events"],
+  emitEvents: ["wish.created"],
   metadata: { name: `Audience Agent ${index}` }
 }));
 

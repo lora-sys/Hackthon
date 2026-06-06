@@ -39,7 +39,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
       if (!cancelled) {
         setAgents(nextAgents);
         setOnline(nextOnline);
-        setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 24));
+        setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 80));
       }
     }
 
@@ -58,7 +58,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
     const source = new EventSource("/api/events/stream");
     source.onmessage = (message) => {
       const event = formatStreamEvent(JSON.parse(message.data) as StreamEventPayload);
-      setSseEvents((current) => uniqueEvents([event, ...current]).slice(0, 24));
+      setSseEvents((current) => uniqueEvents([event, ...current]).slice(0, 80));
     };
 
     return () => {
@@ -67,7 +67,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   }, []);
 
   const events = useMemo(() => {
-    return sseEvents.slice(0, 24);
+    return sseEvents.slice(0, 80);
   }, [sseEvents]);
   const metrics = metricCards(online.count);
 
@@ -119,7 +119,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
                 ))}
               </div>
 
-              <NegotiationPanel />
+              <NegotiationPanel events={events} />
             </section>
           )}
         </div>
@@ -171,31 +171,38 @@ function EventStream({
   );
 }
 
-function NegotiationPanel() {
+function NegotiationPanel({ events }: { events: DashboardEvent[] }) {
+  const discoveryEvents = events.filter((event) => event.stream === "a2a.discovery").slice(0, 2);
+  const runtimeEvents = events.filter((event) => event.stream === "agent.runtime").slice(0, 2);
+  const negotiationEvents = uniqueEvents([
+    ...events
+      .filter((event) => ["negotiation.events", "agent.task"].includes(event.stream ?? ""))
+      .slice(0, 2),
+    ...runtimeEvents,
+    ...discoveryEvents
+  ]).slice(0, 6);
+
   return (
     <section className="rounded-lg border border-[#ddb7ff]/20 bg-[#11131b] p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
-          Negotiation Panel
+          Agent Activity Panel
         </h2>
-        <span className="font-mono text-xs text-orange-300">ACTIVE · 07:32</span>
+        <span className="font-mono text-xs text-orange-300">{negotiationEvents.length} live events</span>
       </div>
       <div className="mt-4 grid gap-3">
-        {[
-          ["Musician", "Proposes 25% split"],
-          ["Venue", "Counter 22% + min fee"],
-          ["Musician", "Accepts 22%"],
-          ["Negotiation", "Deal pending human confirmation"]
-        ].map(([agent, message]) => (
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={message}>
-            <p className="font-mono text-xs text-[#22d3ee]">{agent}</p>
-            <p className="mt-1 text-sm text-white/75">{message}</p>
+        {negotiationEvents.map((event) => (
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={event.id}>
+            <p className="font-mono text-xs text-[#22d3ee]">{event.type}</p>
+            <p className="mt-1 text-sm text-white/75">{event.detail}</p>
           </div>
         ))}
+        {negotiationEvents.length === 0 && (
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm text-white/50">
+            Waiting for A2A discovery or agent tool calls.
+          </p>
+        )}
       </div>
-      <button className="mt-4 w-full rounded-lg bg-[#7c3aed] px-4 py-3 text-sm font-bold text-white">
-        Confirm Deal · Human Confirmation
-      </button>
     </section>
   );
 }

@@ -181,21 +181,45 @@ Test gate:
 
 Status: `REVIEW`.
 
-## Phase 8 - Concierge, Observability, Demo
+## Phase 8A - Agentic A2A Runtime
 
-Goal: polish the end-to-end story for demo.
+Goal: make the demo genuinely agent-native before Concierge polish.
+
+Build items:
+
+- 57 seed AgentCards with A2A discovery fields
+- real musician and venue metadata managed by manager agents
+- Registry-backed A2A discovery server
+- AI-first AgentRuntimeService with simulated fallback
+- runtime events for thoughts, tool calls, tool results, and messages
+- audience role journey into automatic agent-agent negotiation
+- `/my-agent` personal monitor and richer dashboard/topology details
+
+Test gate:
+
+- 57 AgentCards include A2A fields
+- 15 musician and 10 venue agents are discoverable by manager discovery
+- rock + shanghai + date matching returns Top 3 musicians and Top 3 venues
+- every key agent produces `agent.tool_call` and `agent.tool_result`
+- browser journey reaches `/negotiation/[id]` with agent-agent chat
+- dashboard shows runtime and discovery events
+
+Status: `REVIEW`.
+
+## Phase 8B - Concierge, Observability, Demo
+
+Goal: polish the end-to-end story for final demo.
 
 Build items:
 
 - Concierge floating assistant
-- AI SDK telemetry
-- Langfuse integration
+- Langfuse trace export
 - 5-minute demo script
 
 Test gate:
 
 - Langfuse trace is searchable by `workflow_id`
 - Concierge explains current workflow status
-- browser end-to-end demo passes
+- browser end-to-end demo passes with final script
 
 Status: `TODO`.

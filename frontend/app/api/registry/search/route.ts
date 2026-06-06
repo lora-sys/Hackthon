@@ -7,7 +7,8 @@ export async function POST(request: Request) {
     const service = getRegistryService();
     await service.ensureSeeded();
     const query = RegistrySearchRequestSchema.parse(await request.json());
-    return json(service.search(query));
+    const result = await service.discover(query);
+    return json(result.agents);
   } catch (error) {
     return errorResponse(error);
   }

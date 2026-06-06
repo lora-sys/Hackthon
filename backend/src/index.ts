@@ -1,6 +1,7 @@
 export * from "./services/events";
 export * from "./services/negotiation";
 export * from "./services/registry";
+export * from "./services/runtime";
 export * from "./services/settlement";
 export * from "./services/wishes";
 

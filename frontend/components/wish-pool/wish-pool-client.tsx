@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@heroui/react";
-import type { Demand, Wish } from "@wishlive/shared";
+import type { AgentCard, Deal, Demand, Negotiation, Wish } from "@wishlive/shared";
 import { WishCreateRequestSchema } from "@wishlive/shared";
 import type { InputHTMLAttributes } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -15,6 +15,12 @@ type WishFormValues = {
   city: string;
   date: string;
   depositAmount: number;
+};
+
+type WishCreateResponse = {
+  wishId: string;
+  demand: Demand | null;
+  matching: Demand["matching"];
 };
 
 const defaultWish: WishFormValues = {
@@ -33,6 +39,7 @@ export function WishPoolClient() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [autoNegotiation, setAutoNegotiation] = useState<string | null>(null);
   const { register, handleSubmit, reset } = useForm<WishFormValues>({
     defaultValues: defaultWish
   });
@@ -65,7 +72,9 @@ export function WishPoolClient() {
       if (
         event.stream === "wish.events" ||
         event.stream === "demand.events" ||
-        event.stream === "matching.events"
+        event.stream === "matching.events" ||
+        event.stream === "agent.runtime" ||
+        event.stream === "a2a.discovery"
       ) {
         setEvents((current) => uniqueEvents([event, ...current]).slice(0, 18));
         void refresh();
@@ -110,7 +119,13 @@ export function WishPoolClient() {
     setSubmitting(true);
     setError(null);
     try {
-      await postWish(values);
+      const result = await postWish(values);
+      if (result.demand?.matching) {
+        const negotiationId = await startAgentNegotiation(result.demand);
+        setAutoNegotiation(negotiationId);
+        window.location.href = `/negotiation/${encodeURIComponent(negotiationId)}`;
+        return;
+      }
       reset(values);
       await refresh();
     } catch (nextError) {
@@ -126,10 +141,16 @@ export function WishPoolClient() {
     try {
       const runId = crypto.randomUUID().slice(0, 8);
       for (let index = 1; index <= 10; index += 1) {
-        await postWish({
+        const result = await postWish({
           ...defaultWish,
           userId: `user:audience:${runId}:${index}`
         });
+        if (result.demand?.matching) {
+          const negotiationId = await startAgentNegotiation(result.demand);
+          setAutoNegotiation(negotiationId);
+          window.location.href = `/negotiation/${encodeURIComponent(negotiationId)}`;
+          return;
+        }
       }
       await refresh();
     } catch (nextError) {
@@ -156,7 +177,7 @@ export function WishPoolClient() {
             isDisabled={seeding}
             onPress={() => void seedTenWishes()}
           >
-            {seeding ? "Seeding..." : "Seed 10 Wishes"}
+            {seeding ? "Creating cohort..." : "Create 10-Agent Cohort"}
           </Button>
         </header>
 
@@ -183,6 +204,11 @@ export function WishPoolClient() {
               {error && (
                 <p className="rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm text-red-100">
                   {error}
+                </p>
+              )}
+              {autoNegotiation && (
+                <p className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+                  A2A negotiation created: {autoNegotiation}
                 </p>
               )}
               <Button
@@ -222,6 +248,8 @@ export function WishPoolClient() {
           </section>
         </div>
 
+        <AgentPipeline events={events} />
+
         <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
           <WishList wishes={wishes} />
           <EventPanel events={events} />
@@ -259,6 +287,41 @@ function MatchingPanel({ demand }: { demand: Demand }) {
           <CandidateColumn title="Venues" items={matching.venues} />
         </div>
       )}
+    </section>
+  );
+}
+
+function AgentPipeline({ events }: { events: DashboardEvent[] }) {
+  const stages = [
+    ["Audience", "wish.created"],
+    ["WishMaker AI", "agent.tool_call"],
+    ["DemandPool", "demand.created"],
+    ["Manager Discovery", "a2a.discovery.result"],
+    ["Matching", "matching.completed"]
+  ];
+  return (
+    <section className="rounded-lg border border-[#22d3ee]/20 bg-[#11131b] p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
+        Agent Pipeline
+      </h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-5">
+        {stages.map(([label, type]) => {
+          const active = events.some((event) => event.type === type);
+          return (
+            <div
+              className={`rounded-lg border p-3 ${
+                active ? "border-emerald-300/30 bg-emerald-300/10" : "border-white/10 bg-white/[0.03]"
+              }`}
+              key={type}
+            >
+              <p className="font-mono text-xs uppercase text-white/40">{label}</p>
+              <p className={active ? "mt-2 text-sm text-emerald-200" : "mt-2 text-sm text-white/45"}>
+                {active ? "active" : "waiting"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -343,6 +406,79 @@ async function postWish(values: WishFormValues) {
     throw new Error(body.error ?? "Wish submission failed");
   }
 
+  return (await response.json()) as WishCreateResponse;
+}
+
+async function startAgentNegotiation(demand: Demand) {
+  const musicianId = demand.matching?.musicians[0]?.agentId;
+  const venueId = demand.matching?.venues[0]?.agentId;
+  if (!musicianId || !venueId) {
+    throw new Error("Matching candidates are required before negotiation");
+  }
+
+  const [musician, venue] = await Promise.all([
+    fetchJson(`/api/registry/${encodeURIComponent(musicianId)}`) as Promise<AgentCard>,
+    fetchJson(`/api/registry/${encodeURIComponent(venueId)}`) as Promise<AgentCard>
+  ]);
+  const venueFee = Number(venue.metadata.baseFee ?? 5_000);
+  const musicianSplit = Number(musician.metadata.splitPreference ?? 25);
+  const venueSplit = Number(venue.metadata.splitPreference ?? 22);
+  const initialTerms = {
+    venueFee,
+    splitPercentage: musicianSplit,
+    schedule: {
+      date: demand.preferredDate,
+      startTime: "19:00",
+      endTime: "22:00"
+    }
+  };
+
+  const negotiation = (await postJson("/api/negotiation", {
+    demandId: demand.demandId,
+    musicianId,
+    venueId
+  })) as Negotiation;
+  const proposal = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/proposal`, {
+    from: musicianId,
+    to: venueId,
+    terms: initialTerms
+  })) as { proposalId: string };
+  const counter = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/counter`, {
+    proposalId: proposal.proposalId,
+    from: venueId,
+    newTerms: {
+      ...initialTerms,
+      venueFee,
+      splitPercentage: venueSplit
+    }
+  })) as { proposalId: string };
+  await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/accept`, {
+    proposalId: counter.proposalId,
+    from: musicianId
+  }) as { deal: Deal };
+
+  return negotiation.negotiationId;
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    const body = (await response.json()) as { error?: string };
+    throw new Error(body.error ?? `GET ${url} failed`);
+  }
+  return response.json();
+}
+
+async function postJson(url: string, body: unknown) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const payload = (await response.json()) as { error?: string };
+    throw new Error(payload.error ?? `POST ${url} failed`);
+  }
   return response.json();
 }
 
@@ -350,7 +486,9 @@ function isWishWorkflowStream(payload: StreamEventPayload) {
   return (
     payload.stream === "wish.events" ||
     payload.stream === "demand.events" ||
-    payload.stream === "matching.events"
+    payload.stream === "matching.events" ||
+    payload.stream === "agent.runtime" ||
+    payload.stream === "a2a.discovery"
   );
 }
 
