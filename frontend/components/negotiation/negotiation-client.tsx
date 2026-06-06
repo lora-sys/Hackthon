@@ -32,8 +32,11 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (negotiationId !== "demo") {
+      void refreshNegotiation();
+    }
     void refreshEvents();
-  }, []);
+  }, [negotiationId]);
 
   useEffect(() => {
     const source = new EventSource("/api/events/stream");
@@ -41,6 +44,7 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
       const event = formatStreamEvent(JSON.parse(message.data) as StreamEventPayload);
       if (
         event.stream === "agent.task" ||
+        event.stream === "agent.runtime" ||
         event.stream === "negotiation.events" ||
         event.stream === "show.events" ||
         event.stream === "settlement.events"
@@ -111,10 +115,21 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
   async function refreshEvents() {
     const history = ((await fetchJson("/api/events/history")) as StreamEventPayload[])
       .filter((entry) =>
-        ["agent.task", "negotiation.events", "show.events", "settlement.events"].includes(entry.stream)
+        ["agent.task", "agent.runtime", "negotiation.events", "show.events", "settlement.events"].includes(entry.stream)
       )
       .map(formatStreamEvent);
     setEvents(uniqueEvents(history).slice(0, 24));
+  }
+
+  async function refreshNegotiation() {
+    const nextNegotiation = (await fetchJson(
+      `/api/negotiation/${encodeURIComponent(negotiationId)}`
+    )) as Negotiation;
+    setState({
+      negotiation: nextNegotiation,
+      deal: nextNegotiation.deal,
+      settlement: null
+    });
   }
 
   return (
@@ -126,15 +141,15 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
               A2A Negotiation Panel
             </p>
             <h1 className="mt-2 text-3xl font-black sm:text-5xl">
-              Proposal → Deal → Human Confirm → Settlement
+              Musician Agent ↔ Venue Agent
             </h1>
           </div>
           <Button
             className="rounded-lg bg-[#ddb7ff] px-5 py-3 font-bold text-[#22003f]"
             isDisabled={running}
-            onPress={() => void runDemo()}
+            onPress={() => void (negotiationId === "demo" ? runDemo() : refreshNegotiation())}
           >
-            {running ? "Running..." : negotiationId === "demo" ? "Run A2A Demo" : "Resume Flow"}
+            {running ? "Running..." : negotiationId === "demo" ? "Start Agent-Agent Flow" : "Refresh Flow"}
           </Button>
         </header>
 
@@ -163,9 +178,21 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
 
           <section className="rounded-lg border border-[#ddb7ff]/20 bg-[#11131b] p-5">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
-              Proposal Timeline
+              Agent-Agent Chat
             </h2>
             <div className="mt-5 grid gap-3">
+              {events
+                .filter((event) => event.stream === "agent.runtime" || event.stream === "agent.task")
+                .slice(0, 8)
+                .map((event) => (
+                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={event.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-mono text-xs text-[#22d3ee]">{event.agent}</p>
+                      <p className="font-mono text-xs text-white/40">{event.type}</p>
+                    </div>
+                    <p className="mt-2 text-sm text-white/70">{event.detail}</p>
+                  </div>
+                ))}
               {(state.negotiation?.proposals ?? []).map((proposal) => (
                 <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={proposal.proposalId}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -183,8 +210,8 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
                   </p>
                 </div>
               ))}
-              {!state.negotiation?.proposals.length && (
-                <p className="text-sm text-white/55">Run the demo to create A2A proposal traffic.</p>
+              {!state.negotiation?.proposals.length && events.length === 0 && (
+                <p className="text-sm text-white/55">Waiting for agent messages.</p>
               )}
             </div>
           </section>

@@ -14,7 +14,7 @@ describe("wish demand matching workflow", () => {
         artistName: "Neon Harbor",
         genre: "rock",
         city: "shanghai",
-        date: "2026-07-18",
+        date: "2026-07-17",
         depositAmount: 20
       });
     }
@@ -31,6 +31,11 @@ describe("wish demand matching workflow", () => {
     expect(eventBus.byType("demand.created")).toHaveLength(1);
     expect(eventBus.byType("matching.started")).toHaveLength(1);
     expect(eventBus.byType("matching.completed")).toHaveLength(1);
+    expect(eventBus.byType("agent.tool_call").length).toBeGreaterThanOrEqual(12);
+    expect(eventBus.byType("agent.tool_result").length).toBeGreaterThanOrEqual(12);
+    expect(eventBus.byType("agent.message").length).toBeGreaterThanOrEqual(12);
+    expect(eventBus.byType("a2a.discovery.started").length).toBeGreaterThanOrEqual(4);
+    expect(eventBus.byType("manager.search.performed").length).toBeGreaterThanOrEqual(4);
   });
 
   it("keeps matching formula at zero drift", async () => {

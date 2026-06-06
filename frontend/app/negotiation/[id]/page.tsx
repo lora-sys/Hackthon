@@ -6,5 +6,13 @@ type PageProps = {
 
 export default async function NegotiationPage({ params }: PageProps) {
   const { id } = await params;
-  return <NegotiationClient negotiationId={id} />;
+  return <NegotiationClient negotiationId={safeDecode(id)} />;
+}
+
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

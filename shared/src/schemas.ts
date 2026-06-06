@@ -20,6 +20,37 @@ export const AgentStatusSchema = z.enum([
   "ERROR"
 ]);
 
+export const AgentSkillDetailSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  tags: z.array(z.string().min(1)).default([]),
+  examples: z.array(z.string().min(1)).default([])
+});
+
+export const AgentInterfaceSchema = z.object({
+  url: z.string().min(1),
+  protocol_binding: z.string().min(1).default("Redis+JSON"),
+  protocol_version: z.string().min(1).default("1.0"),
+  tenant: z.string().min(1).default("wishlive")
+});
+
+export const AgentCapabilitiesSchema = z.object({
+  streaming: z.boolean().default(true),
+  push_notifications: z.boolean().default(false),
+  tool_calls: z.boolean().default(true),
+  a2a_discovery: z.boolean().default(true)
+});
+
+export const ReputationBreakdownSchema = z.object({
+  completedDeals: z.number().int().nonnegative().default(0),
+  failures: z.number().int().nonnegative().default(0),
+  complaints: z.number().int().nonnegative().default(0),
+  responseTimeScore: z.number().min(0).max(100).default(70),
+  fulfillmentRate: z.number().min(0).max(1).default(0.9),
+  score: z.number().min(0).max(100).default(70)
+});
+
 export const AgentCardSchema = z.object({
   agent_id: z.string().min(1),
   did: z.string().min(1),
@@ -28,7 +59,19 @@ export const AgentCardSchema = z.object({
   skills: z.array(z.string().min(1)),
   tags: z.array(z.string().min(1)).default([]),
   reputation: z.number().min(0).max(100).default(0),
-  metadata: z.record(z.string(), z.unknown()).default({})
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  name: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  supported_interfaces: z.array(AgentInterfaceSchema).default([]),
+  capabilities: AgentCapabilitiesSchema.optional(),
+  default_input_modes: z.array(z.string().min(1)).default(["application/json", "text/plain"]),
+  default_output_modes: z.array(z.string().min(1)).default(["application/json", "text/plain"]),
+  skill_details: z.array(AgentSkillDetailSchema).default([]),
+  managerAgentId: z.string().min(1).optional(),
+  listenStreams: z.array(z.string().min(1)).default([]),
+  emitEvents: z.array(z.string().min(1)).default([]),
+  systemPrompt: z.string().min(1).optional(),
+  reputationBreakdown: ReputationBreakdownSchema.optional()
 });
 
 export const AgentRecordSchema = z.object({
@@ -56,7 +99,26 @@ export const RegistrySearchRequestSchema = z.object({
   genre: z.string().min(1).optional(),
   city: z.string().min(1).optional(),
   capacity: z.number().int().positive().optional(),
-  type: AgentTypeSchema.optional()
+  type: AgentTypeSchema.optional(),
+  skill: z.string().min(1).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  managerAgentId: z.string().min(1).optional(),
+  availability: z.string().min(1).optional(),
+  date: z.string().min(1).optional()
+});
+
+export const A2ADiscoveryRequestSchema = RegistrySearchRequestSchema.extend({
+  requesterAgentId: z.string().min(1).optional(),
+  workflowId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional(),
+  limit: z.number().int().positive().max(25).default(10)
+});
+
+export const A2ADiscoveryResultSchema = z.object({
+  managerAgentId: z.string().min(1),
+  query: A2ADiscoveryRequestSchema,
+  agents: z.array(AgentCardSchema),
+  createdAt: z.number().int().positive()
 });
 
 export const RegistryListRequestSchema = z.object({
@@ -132,6 +194,45 @@ export const WishCreateResponseSchema = z.object({
   wishId: z.string().min(1),
   demand: DemandSchema.nullable(),
   matching: MatchingResultSchema.nullable()
+});
+
+export const AgentRuntimeModeSchema = z.enum(["real", "simulated"]);
+
+export const AgentToolCallSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  input: z.record(z.string(), z.unknown()),
+  output: z.record(z.string(), z.unknown()).optional(),
+  createdAt: z.number().int().positive()
+});
+
+export const AgentSessionMessageSchema = z.object({
+  id: z.string().min(1),
+  role: z.enum(["system", "user", "assistant", "tool"]),
+  agentId: z.string().min(1),
+  content: z.string().min(1),
+  createdAt: z.number().int().positive(),
+  simulated: z.boolean().default(false)
+});
+
+export const AgentSessionSchema = z.object({
+  sessionId: z.string().min(1),
+  workflowId: z.string().min(1),
+  conversationId: z.string().min(1),
+  agentId: z.string().min(1),
+  mode: AgentRuntimeModeSchema,
+  status: z.enum(["CREATED", "RUNNING", "COMPLETED", "ERROR"]),
+  messages: z.array(AgentSessionMessageSchema),
+  toolCalls: z.array(AgentToolCallSchema),
+  telemetry: z.object({
+    workflow_id: z.string().min(1),
+    agent_id: z.string().min(1),
+    conversation_id: z.string().min(1),
+    model: z.string().min(1),
+    trace_id: z.string().min(1)
+  }),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive()
 });
 
 export const ShowScheduleSchema = z.object({
@@ -319,6 +420,8 @@ export const A2AMessageSchema = z.object({
 });
 
 export type AgentCard = z.infer<typeof AgentCardSchema>;
+export type AgentSkillDetail = z.infer<typeof AgentSkillDetailSchema>;
+export type ReputationBreakdown = z.infer<typeof ReputationBreakdownSchema>;
 export type AgentRecord = z.infer<typeof AgentRecordSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 export type AgentType = z.infer<typeof AgentTypeSchema>;
@@ -326,11 +429,15 @@ export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;
 export type A2AMessage = z.infer<typeof A2AMessageSchema>;
 export type RegistryListRequest = z.infer<typeof RegistryListRequestSchema>;
 export type RegistrySearchRequest = z.infer<typeof RegistrySearchRequestSchema>;
+export type A2ADiscoveryRequest = z.infer<typeof A2ADiscoveryRequestSchema>;
+export type A2ADiscoveryResult = z.infer<typeof A2ADiscoveryResultSchema>;
 export type Wish = z.infer<typeof WishSchema>;
 export type WishCreateRequest = z.infer<typeof WishCreateRequestSchema>;
 export type Demand = z.infer<typeof DemandSchema>;
 export type MatchingResult = z.infer<typeof MatchingResultSchema>;
 export type MatchCandidate = z.infer<typeof MatchCandidateSchema>;
+export type AgentSession = z.infer<typeof AgentSessionSchema>;
+export type AgentToolCall = z.infer<typeof AgentToolCallSchema>;
 export type ProposalTerms = z.infer<typeof ProposalTermsSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 export type Negotiation = z.infer<typeof NegotiationSchema>;

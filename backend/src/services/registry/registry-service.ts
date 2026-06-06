@@ -1,5 +1,7 @@
 import {
+  A2ADiscoveryRequestSchema,
   AgentCardSchema,
+  type A2ADiscoveryResult,
   type AgentCard,
   type AgentRecord,
   type AgentType,
@@ -13,6 +15,7 @@ import { createEventEnvelope, MemoryEventBus } from "../events";
 import { createSeedAgentCards } from "./seeds";
 
 const LIFECYCLE_STREAM = "agent.lifecycle";
+const DISCOVERY_STREAM = "a2a.discovery";
 const HEARTBEAT_TIMEOUT_MS = 60_000;
 
 export class RegistryService {
@@ -72,7 +75,56 @@ export class RegistryService {
     return this.list({ type: query.type })
       .filter((card) => matchesTagOrMetadata(card, "genre", query.genre))
       .filter((card) => matchesTagOrMetadata(card, "city", query.city))
-      .filter((card) => matchesCapacity(card, query.capacity));
+      .filter((card) => matchesCapacity(card, query.capacity))
+      .filter((card) => matchesSkill(card, query.skill))
+      .filter((card) => matchesTags(card, query.tags))
+      .filter((card) => matchesManager(card, query.managerAgentId))
+      .filter((card) => matchesAvailability(card, query.availability ?? query.date));
+  }
+
+  async discover(input: unknown = {}): Promise<A2ADiscoveryResult> {
+    const query = A2ADiscoveryRequestSchema.parse(input);
+    const managerAgentId = query.managerAgentId ?? this.managerForQuery(query);
+    const startedAt = Date.now();
+
+    await this.publishDiscovery("a2a.discovery.started", query.requesterAgentId ?? "agent:business:005", {
+      requesterAgentId: query.requesterAgentId ?? "agent:business:005",
+      managerAgentId,
+      workflowId: query.workflowId ?? "workflow:discovery",
+      conversationId: query.conversationId ?? "conversation:discovery",
+      type: query.type ?? "any",
+      skill: query.skill ?? "any",
+      city: query.city ?? "any",
+      genre: query.genre ?? "any"
+    });
+
+    const agents = this.search({ ...query, managerAgentId })
+      .sort((left, right) => right.reputation - left.reputation || left.agent_id.localeCompare(right.agent_id))
+      .slice(0, query.limit);
+
+    await this.publishDiscovery("manager.search.performed", managerAgentId, {
+      managerAgentId,
+      requesterAgentId: query.requesterAgentId ?? "agent:business:005",
+      resultCount: agents.length,
+      candidateIds: agents.map((agent) => agent.agent_id),
+      skill: query.skill ?? "any",
+      city: query.city ?? "any",
+      genre: query.genre ?? "any"
+    });
+    await this.publishDiscovery("a2a.discovery.result", managerAgentId, {
+      managerAgentId,
+      requesterAgentId: query.requesterAgentId ?? "agent:business:005",
+      resultCount: agents.length,
+      agentIds: agents.map((agent) => agent.agent_id),
+      elapsedMs: Date.now() - startedAt
+    });
+
+    return {
+      managerAgentId,
+      query,
+      agents,
+      createdAt: Date.now()
+    };
   }
 
   onlineCount() {
@@ -159,6 +211,27 @@ export class RegistryService {
       })
     );
   }
+
+  private async publishDiscovery(type: string, source: string, data: Record<string, unknown>) {
+    await this.eventBus.publish(
+      DISCOVERY_STREAM,
+      createEventEnvelope({
+        type,
+        source,
+        data
+      })
+    );
+  }
+
+  private managerForQuery(query: RegistrySearchRequest) {
+    if (query.type === "venue" || query.capacity) {
+      return "agent:manager:002";
+    }
+    if (query.type === "musician" || query.genre) {
+      return "agent:manager:001";
+    }
+    return "agent:manager:003";
+  }
 }
 
 export class RegistryError extends Error {
@@ -195,4 +268,46 @@ function matchesCapacity(card: AgentCard, capacity?: number) {
     }
     return Number(tag.replace("capacity:", "")) >= capacity;
   });
+}
+
+function matchesSkill(card: AgentCard, skill?: string) {
+  if (!skill) {
+    return true;
+  }
+  return card.skills.includes(skill) || card.skill_details.some((entry) => entry.id === skill);
+}
+
+function matchesTags(card: AgentCard, tags?: string[]) {
+  if (!tags?.length) {
+    return true;
+  }
+  return tags.every((tag) => card.tags.includes(tag));
+}
+
+function matchesManager(card: AgentCard, managerAgentId?: string) {
+  if (!managerAgentId) {
+    return true;
+  }
+  return card.managerAgentId === managerAgentId || card.tags.includes(`manager:${managerAgentId}`);
+}
+
+function matchesAvailability(card: AgentCard, date?: string) {
+  if (!date) {
+    return true;
+  }
+
+  const calendar = card.metadata.availabilityCalendar ?? card.metadata.availableDates;
+  if (Array.isArray(calendar)) {
+    return calendar.includes(date);
+  }
+
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const availability = String(card.metadata.availability ?? "always");
+  if (availability === "weekends") {
+    return day === 0 || day === 6;
+  }
+  if (availability === "weeknights") {
+    return day >= 1 && day <= 5;
+  }
+  return true;
 }
