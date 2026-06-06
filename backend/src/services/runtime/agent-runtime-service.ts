@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import type {
   AgentCard,
@@ -7,7 +7,10 @@ import type {
 } from "@wishlive/shared";
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
+import { ensureLangfuse, langfuseTraceUrl } from "../observability";
 import type { RegistryService } from "../registry";
+import { createWishLiveModel, hasAIConfig, aiModelName } from "./ai-provider";
+import { addRuntimeSession } from "./session-store";
 
 const RUNTIME_STREAM = "agent.runtime";
 const AGENT_TASK_STREAM = "agent.task";
@@ -35,8 +38,8 @@ type RunAgentInput = {
   metadata?: Record<string, unknown>;
 };
 
-const runtimeTools = {
-  discover_agents: tool({
+const runtimeToolSchemas = {
+  discover_agents: {
     description: "Discover candidate A2A AgentCards through the manager-backed registry.",
     inputSchema: z.object({
       type: z.enum(["audience", "musician", "venue", "manager", "business", "infrastructure"]).optional(),
@@ -46,22 +49,22 @@ const runtimeTools = {
       date: z.string().optional(),
       capacity: z.number().optional()
     })
-  }),
-  check_availability: tool({
+  },
+  check_availability: {
     description: "Check whether a musician or venue is available on a requested date.",
     inputSchema: z.object({
       agentId: z.string(),
       date: z.string()
     })
-  }),
-  quote_price: tool({
+  },
+  quote_price: {
     description: "Quote a venue base price for a show.",
     inputSchema: z.object({
       agentId: z.string(),
       expectedAudience: z.number().optional()
     })
-  }),
-  propose_offer: tool({
+  },
+  propose_offer: {
     description: "Create a proposal offer from one agent to another.",
     inputSchema: z.object({
       from: z.string(),
@@ -69,8 +72,8 @@ const runtimeTools = {
       venueFee: z.number(),
       splitPercentage: z.number()
     })
-  }),
-  counter_offer: tool({
+  },
+  counter_offer: {
     description: "Counter an existing proposal.",
     inputSchema: z.object({
       from: z.string(),
@@ -78,22 +81,22 @@ const runtimeTools = {
       venueFee: z.number(),
       splitPercentage: z.number()
     })
-  }),
-  accept_offer: tool({
+  },
+  accept_offer: {
     description: "Accept a counter proposal.",
     inputSchema: z.object({
       from: z.string(),
       proposalId: z.string()
     })
-  }),
-  update_reputation: tool({
+  },
+  update_reputation: {
     description: "Update reputation after a workflow action.",
     inputSchema: z.object({
       agentId: z.string(),
       delta: z.number(),
       reason: z.string()
     })
-  })
+  }
 } satisfies Record<RuntimeToolName, unknown>;
 
 export class AgentRuntimeService {
@@ -107,9 +110,10 @@ export class AgentRuntimeService {
     const agent = this.registry.get(input.agentId);
     const now = Date.now();
     const sessionId = `session:${crypto.randomUUID()}`;
-    const model = process.env.OPENAI_MODEL ?? "fallback-simulated";
+    const model = aiModelName();
     const traceId = `trace:${crypto.randomUUID()}`;
-    const mode = hasOpenAIConfig() ? "real" : "simulated";
+    const langfuse = ensureLangfuse();
+    let mode: AgentSession["mode"] = hasAIConfig() ? "real" : "simulated";
 
     const session: AgentSession = {
       sessionId,
@@ -125,33 +129,67 @@ export class AgentRuntimeService {
         agent_id: input.agentId,
         conversation_id: input.conversationId,
         model,
-        trace_id: traceId
+        trace_id: traceId,
+        langfuse_enabled: langfuse.enabled,
+        langfuse_trace_url: langfuseTraceUrl(traceId)
       },
       createdAt: now,
       updatedAt: now
     };
 
+    await this.publishRuntime("agent.session.started", input.agentId, {
+      sessionId,
+      workflow_id: input.workflowId,
+      agent_id: input.agentId,
+      conversation_id: input.conversationId,
+      model,
+      mode,
+      langfuse_enabled: langfuse.enabled
+    });
+
     await this.publishRuntime("agent.thought", input.agentId, {
       sessionId,
       workflow_id: input.workflowId,
+      agent_id: input.agentId,
       conversation_id: input.conversationId,
+      mode,
       simulated: mode === "simulated",
       thought: `${agent.name ?? agent.agent_id} is selecting tools: ${input.tools.map((entry) => entry.name).join(", ")}`
     });
 
-    for (const plannedTool of input.tools) {
-      const toolCall = await this.executeTool(agent, plannedTool.name, plannedTool.input, input);
-      session.toolCalls.push(toolCall);
+    let assistantText: string;
+    if (mode === "real") {
+      try {
+        assistantText = await this.generateWithAISDK(agent, input, session);
+        await this.executeMissingPlannedTools(agent, input, session, "real");
+      } catch (error) {
+        mode = "simulated";
+        session.mode = mode;
+        await this.publishRuntime("agent.thought", input.agentId, {
+          sessionId,
+          workflow_id: input.workflowId,
+          agent_id: input.agentId,
+          conversation_id: input.conversationId,
+          mode,
+          simulated: true,
+          thought: `AI SDK model call failed; switching to deterministic simulated fallback: ${
+            error instanceof Error ? error.message : "unknown model error"
+          }`
+        });
+        await this.executePlannedTools(agent, input, session, mode);
+        assistantText = simulatedMessage(agent, input, session, "AI SDK model failed");
+      }
+    } else {
+      await this.executePlannedTools(agent, input, session, mode);
+      assistantText = simulatedMessage(agent, input, session);
     }
-
-    const assistantText = await this.generateAssistantMessage(agent, input, session);
     const message: AgentSessionMessage = {
       id: `message:${crypto.randomUUID()}`,
       role: "assistant",
       agentId: input.agentId,
       content: assistantText,
       createdAt: Date.now(),
-      simulated: mode === "simulated"
+      simulated: session.mode === "simulated"
     };
     session.messages.push(message);
     session.status = "COMPLETED";
@@ -160,7 +198,9 @@ export class AgentRuntimeService {
     await this.publishRuntime("agent.message", input.agentId, {
       sessionId,
       workflow_id: input.workflowId,
+      agent_id: input.agentId,
       conversation_id: input.conversationId,
+      mode: session.mode,
       simulated: message.simulated,
       content: message.content,
       metadata: input.metadata ?? {}
@@ -175,24 +215,123 @@ export class AgentRuntimeService {
           sessionId,
           workflowId: input.workflowId,
           conversationId: input.conversationId,
+          agentId: input.agentId,
           content: message.content,
+          mode: session.mode,
           simulated: message.simulated
         }
       })
     );
 
+    await this.publishRuntime("agent.session.completed", input.agentId, {
+      sessionId,
+      workflow_id: input.workflowId,
+      agent_id: input.agentId,
+      conversation_id: input.conversationId,
+      mode: session.mode,
+      simulated: session.mode === "simulated",
+      toolCallCount: session.toolCalls.length,
+      messageCount: session.messages.length,
+      langfuse_enabled: session.telemetry.langfuse_enabled,
+      langfuse_trace_url: session.telemetry.langfuse_trace_url
+    });
+
+    addRuntimeSession(session);
+
     return session;
+  }
+
+  private async generateWithAISDK(agent: AgentCard, input: RunAgentInput, session: AgentSession) {
+    const result = await generateText({
+      model: createWishLiveModel(),
+      system: agent.systemPrompt ?? `You are ${agent.name ?? agent.agent_id}, a WishLive A2A agent.`,
+      prompt: [
+        input.userMessage,
+        `Workflow: ${input.workflowId}`,
+        `Conversation: ${input.conversationId}`,
+        `Required tools in order: ${input.tools.map((entry) => entry.name).join(", ")}`,
+        "Use the available tools when useful, then summarize the decision in one concise paragraph."
+      ].join("\n"),
+      tools: this.buildAISDKTools(agent, input, session),
+      toolChoice: input.tools.length ? "required" : "auto",
+      stopWhen: stepCountIs(Math.max(2, input.tools.length + 1)),
+      temperature: 0.2,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: "wishlive.agent_runtime",
+        metadata: {
+          workflow_id: input.workflowId,
+          agent_id: input.agentId,
+          agent_type: agent.type,
+          conversation_id: input.conversationId,
+          model: aiModelName(),
+          ...input.metadata
+        }
+      }
+    });
+    return result.text || simulatedMessage(agent, input, session, "AI SDK returned empty text");
+  }
+
+  private buildAISDKTools(agent: AgentCard, input: RunAgentInput, session: AgentSession) {
+    const plannedInputs = new Map(input.tools.map((entry) => [entry.name, entry.input]));
+    return Object.fromEntries(
+      (Object.entries(runtimeToolSchemas) as Array<[RuntimeToolName, { description: string; inputSchema: z.ZodType }]>)
+        .map(([name, schema]) => [
+          name,
+          tool({
+            description: schema.description,
+            inputSchema: schema.inputSchema,
+            execute: async (toolInput, options) => {
+              const mergedInput = {
+                ...(plannedInputs.get(name) ?? {}),
+                ...(typeof toolInput === "object" && toolInput ? (toolInput as Record<string, unknown>) : {})
+              };
+              const call = await this.executeTool(agent, name, mergedInput, input, "real", options.toolCallId);
+              session.toolCalls.push(call);
+              return call.output ?? {};
+            }
+          })
+        ])
+    );
+  }
+
+  private async executePlannedTools(
+    agent: AgentCard,
+    input: RunAgentInput,
+    session: AgentSession,
+    mode: AgentSession["mode"]
+  ) {
+    for (const plannedTool of input.tools) {
+      const toolCall = await this.executeTool(agent, plannedTool.name, plannedTool.input, input, mode);
+      session.toolCalls.push(toolCall);
+    }
+  }
+
+  private async executeMissingPlannedTools(
+    agent: AgentCard,
+    input: RunAgentInput,
+    session: AgentSession,
+    mode: AgentSession["mode"]
+  ) {
+    const completed = new Set(session.toolCalls.map((entry) => entry.name));
+    for (const plannedTool of input.tools) {
+      if (!completed.has(plannedTool.name)) {
+        const toolCall = await this.executeTool(agent, plannedTool.name, plannedTool.input, input, mode);
+        session.toolCalls.push(toolCall);
+      }
+    }
   }
 
   private async executeTool(
     agent: AgentCard,
     name: RuntimeToolName,
     toolInput: Record<string, unknown>,
-    input: RunAgentInput
+    input: RunAgentInput,
+    mode: AgentSession["mode"],
+    toolCallId = `tool:${crypto.randomUUID()}`
   ): Promise<AgentToolCall> {
-    void runtimeTools[name];
     const toolCall: AgentToolCall = {
-      id: `tool:${crypto.randomUUID()}`,
+      id: toolCallId,
       name,
       input: toolInput,
       createdAt: Date.now()
@@ -202,21 +341,26 @@ export class AgentRuntimeService {
       toolCallId: toolCall.id,
       toolName: name,
       workflow_id: input.workflowId,
+      agent_id: input.agentId,
       conversation_id: input.conversationId,
       input: toolInput,
-      simulated: !hasOpenAIConfig()
+      mode,
+      simulated: mode === "simulated"
     });
 
     const output = await this.toolResult(name, toolInput, input);
     toolCall.output = output;
+    toolCall.completedAt = Date.now();
 
     await this.publishRuntime("agent.tool_result", agent.agent_id, {
       toolCallId: toolCall.id,
       toolName: name,
       workflow_id: input.workflowId,
+      agent_id: input.agentId,
       conversation_id: input.conversationId,
       output,
-      simulated: !hasOpenAIConfig()
+      mode,
+      simulated: mode === "simulated"
     });
 
     return toolCall;
@@ -288,47 +432,6 @@ export class AgentRuntimeService {
     };
   }
 
-  private async generateAssistantMessage(agent: AgentCard, input: RunAgentInput, session: AgentSession) {
-    if (!hasOpenAIConfig()) {
-      return simulatedMessage(agent, input, session);
-    }
-
-    try {
-      const response = await fetch(`${openAIBaseUrl()}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL,
-          temperature: 0.2,
-          messages: [
-            {
-              role: "system",
-              content: agent.systemPrompt ?? `You are ${agent.name ?? agent.agent_id}.`
-            },
-            {
-              role: "user",
-              content: `${input.userMessage}\nTool results: ${JSON.stringify(session.toolCalls.map((entry) => entry.output))}`
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        return simulatedMessage(agent, input, session, `real model failed:${response.status}`);
-      }
-
-      const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      return payload.choices?.[0]?.message?.content?.trim() || simulatedMessage(agent, input, session);
-    } catch (error) {
-      return simulatedMessage(agent, input, session, error instanceof Error ? error.message : "model error");
-    }
-  }
-
   private async publishRuntime(type: string, source: string, data: Record<string, unknown>) {
     await this.eventBus.publish(
       RUNTIME_STREAM,
@@ -339,14 +442,6 @@ export class AgentRuntimeService {
       })
     );
   }
-}
-
-function hasOpenAIConfig() {
-  return Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL);
-}
-
-function openAIBaseUrl() {
-  return (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
 }
 
 function simulatedMessage(

@@ -2,10 +2,15 @@ import {
   AcceptProposalRequestSchema,
   CounterProposalRequestSchema,
   CreateNegotiationRequestSchema,
+  DealSchema,
   RejectProposalRequestSchema,
   SendProposalRequestSchema,
+  NegotiationSchema,
+  ProposalTermsSchema,
   type A2AMessage,
+  type AgentCard,
   type Deal,
+  type Demand,
   type Negotiation,
   type Proposal,
   type ProposalTerms
@@ -13,6 +18,7 @@ import {
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
 import type { RegistryService } from "../registry";
+import { createSeedAgentCards } from "../registry/seeds";
 import { AgentRuntimeService } from "../runtime";
 import type { SettlementService } from "../settlement";
 
@@ -64,6 +70,62 @@ export class NegotiationService {
     return negotiation;
   }
 
+  async runAutonomousNegotiation(demand: Demand) {
+    if (!demand.matching?.musicians.length || !demand.matching.venues.length) {
+      throw new NegotiationError(400, "Matching candidates are required before autonomous negotiation");
+    }
+
+    const existing = this.findByDemandId(demand.demandId);
+    if (existing) {
+      return existing;
+    }
+
+    const musicianId = demand.matching.musicians[0]?.agentId;
+    const venueId = demand.matching.venues[0]?.agentId;
+    if (!musicianId || !venueId) {
+      throw new NegotiationError(400, "Top musician and venue candidates are required");
+    }
+
+    const musician = this.registry.get(musicianId);
+    const venue = this.registry.get(venueId);
+    const negotiation = await this.createNegotiation({
+      demandId: demand.demandId,
+      musicianId,
+      venueId
+    });
+
+    const initialTerms = buildProposalTerms({
+      demand,
+      musician,
+      venue,
+      splitSource: musician
+    });
+    const initial = await this.sendProposal(negotiation.negotiationId, {
+      from: musicianId,
+      to: venueId,
+      terms: initialTerms
+    });
+
+    const counterTerms = buildProposalTerms({
+      demand,
+      musician,
+      venue,
+      splitSource: venue
+    });
+    const counter = await this.counterProposal(negotiation.negotiationId, {
+      proposalId: initial.proposalId,
+      from: venueId,
+      newTerms: counterTerms
+    });
+
+    await this.acceptProposal(negotiation.negotiationId, {
+      proposalId: counter.proposalId,
+      from: musicianId
+    });
+
+    return this.get(negotiation.negotiationId);
+  }
+
   list(input: { agentId?: string; status?: Negotiation["status"] } = {}) {
     return [...this.negotiations.values()]
       .filter(
@@ -76,12 +138,22 @@ export class NegotiationService {
       .sort((left, right) => right.updatedAt - left.updatedAt);
   }
 
+  findByDemandId(demandId: string) {
+    return [...this.negotiations.values()]
+      .filter((negotiation) => negotiation.demandId === demandId)
+      .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+  }
+
   get(negotiationId: string) {
     const negotiation = this.negotiations.get(negotiationId);
     if (!negotiation) {
       throw new NegotiationError(404, `Negotiation not found: ${negotiationId}`);
     }
     return negotiation;
+  }
+
+  async getOrRecover(negotiationId: string) {
+    return this.negotiations.get(negotiationId) ?? (await this.recoverNegotiation(negotiationId));
   }
 
   listDeals(input: { status?: Deal["status"] } = {}) {
@@ -96,6 +168,10 @@ export class NegotiationService {
       throw new NegotiationError(404, `Deal not found: ${dealId}`);
     }
     return deal;
+  }
+
+  async getDealOrRecover(dealId: string) {
+    return this.deals.get(dealId) ?? (await this.recoverDeal(dealId));
   }
 
   async sendProposal(negotiationId: string, input: unknown) {
@@ -238,13 +314,14 @@ export class NegotiationService {
   }
 
   async confirmDeal(dealId: string, signature: string) {
-    const deal = this.getDeal(dealId);
+    const deal = this.deals.get(dealId) ?? (await this.recoverDeal(dealId));
     if (deal.status !== "PENDING_CONFIRMATION") {
       throw new NegotiationError(409, `Deal cannot be confirmed from ${deal.status}`);
     }
 
-    const musician = this.registry.get(deal.musicianAgentId);
-    const venue = this.registry.get(deal.venueAgentId);
+    await this.registry.ensureSeeded();
+    const musician = await this.resolveParticipantCard(deal.musicianAgentId);
+    const venue = await this.resolveParticipantCard(deal.venueAgentId);
     const now = Date.now();
     deal.status = "CONFIRMED";
     deal.confirmedAt = now;
@@ -293,7 +370,7 @@ export class NegotiationService {
   }
 
   async rejectDeal(dealId: string, reason = "human rejected") {
-    const deal = this.getDeal(dealId);
+    const deal = this.deals.get(dealId) ?? (await this.recoverDeal(dealId));
     if (deal.status !== "PENDING_CONFIRMATION") {
       throw new NegotiationError(409, `Deal cannot be rejected from ${deal.status}`);
     }
@@ -396,6 +473,155 @@ export class NegotiationService {
     this.negotiations.set(negotiation.negotiationId, negotiation);
   }
 
+  private async resolveParticipantCard(agentId: string) {
+    try {
+      return this.registry.get(agentId);
+    } catch (error) {
+      const seedCard = createSeedAgentCards().find((card) => card.agent_id === agentId);
+      if (!seedCard) {
+        throw error;
+      }
+      await this.registry.register(seedCard);
+      await this.registry.heartbeat(seedCard.agent_id);
+      return this.registry.get(agentId);
+    }
+  }
+
+  private async recoverDeal(dealId: string) {
+    const negotiation = await this.recoverNegotiationByDealId(dealId);
+    const deal = negotiation.deal;
+    if (!deal || deal.dealId !== dealId) {
+      throw new NegotiationError(404, `Deal not found: ${dealId}`);
+    }
+    return deal;
+  }
+
+  private async recoverNegotiationByDealId(dealId: string) {
+    const entries = await this.readRecentStateEvents();
+    const dealEvent = entries.find(
+      (entry) => entry.event.type === "deal.created" && entry.event.data.dealId === dealId
+    );
+    const negotiationId = stringValue(dealEvent?.event.data.negotiationId);
+    if (!negotiationId) {
+      throw new NegotiationError(404, `Deal not found: ${dealId}`);
+    }
+    return this.recoverNegotiation(negotiationId, entries);
+  }
+
+  private async recoverNegotiation(
+    negotiationId: string,
+    prefetched?: Array<{ stream: string; event: { type: string; timestamp: number; data: Record<string, unknown> } }>
+  ) {
+    const entries = (prefetched ?? (await this.readRecentStateEvents()))
+      .filter(
+        (entry) =>
+          entry.event.data.negotiationId === negotiationId ||
+          entry.event.data.targetAgentId === negotiationId
+      )
+      .sort((left, right) => left.event.timestamp - right.event.timestamp);
+    const started = entries.find((entry) => entry.event.type === "negotiation.started");
+    if (!started) {
+      throw new NegotiationError(404, `Negotiation not found: ${negotiationId}`);
+    }
+
+    const demandId = requiredString(started.event.data.demandId, "demandId");
+    const musicianId = requiredString(started.event.data.musicianId, "musicianId");
+    const venueId = requiredString(started.event.data.venueId, "venueId");
+    const proposals: Proposal[] = [];
+    let deal: Deal | null = null;
+
+    for (const entry of entries) {
+      if (entry.event.type === "proposal.sent" || entry.event.type === "proposal.countered") {
+        const terms = ProposalTermsSchema.parse(entry.event.data.terms);
+        const proposal = {
+          proposalId: requiredString(entry.event.data.proposalId, "proposalId"),
+          negotiationId,
+          senderAgentId: requiredString(entry.event.data.from, "from"),
+          receiverAgentId: requiredString(entry.event.data.to, "to"),
+          type: entry.event.type === "proposal.sent" ? "INITIAL" : "COUNTER",
+          terms,
+          decision: "PENDING",
+          payload: {},
+          createdAt: entry.event.timestamp
+        } satisfies Proposal;
+        proposals.push(proposal);
+      }
+
+      if (entry.event.type === "proposal.accepted") {
+        const proposalId = requiredString(entry.event.data.proposalId, "proposalId");
+        const proposal = proposals.find((candidate) => candidate.proposalId === proposalId);
+        if (proposal) {
+          proposal.decision = "ACCEPTED";
+        }
+      }
+
+      if (entry.event.type === "deal.created") {
+        const proposalId = requiredString(entry.event.data.proposalId, "proposalId");
+        const proposal = proposals.find((candidate) => candidate.proposalId === proposalId);
+        if (proposal) {
+          deal = DealSchema.parse({
+            dealId: requiredString(entry.event.data.dealId, "dealId"),
+            negotiationId,
+            proposalId,
+            demandId,
+            musicianAgentId: musicianId,
+            venueAgentId: venueId,
+            terms: proposal.terms,
+            status: entry.event.data.status ?? "PENDING_CONFIRMATION",
+            escrowId: null,
+            ticketId: null,
+            createdAt: entry.event.timestamp,
+            confirmedAt: null
+          });
+        }
+      }
+
+      if (deal && entry.event.type === "show.confirmed" && entry.event.data.dealId === deal.dealId) {
+        deal.status = "CONFIRMED";
+        deal.confirmedAt = entry.event.timestamp;
+      }
+
+      if (deal && entry.event.type === "escrow.created" && entry.event.data.dealId === deal.dealId) {
+        deal.escrowId = stringValue(entry.event.data.escrowId) ?? deal.escrowId;
+      }
+
+      if (deal && entry.event.type === "ticket.minted" && entry.event.data.dealId === deal.dealId) {
+        deal.ticketId = stringValue(entry.event.data.ticketId) ?? stringValue(entry.event.data.tokenId) ?? deal.ticketId;
+        deal.status = "SETTLED";
+      }
+    }
+
+    const updatedAt = entries.at(-1)?.event.timestamp ?? started.event.timestamp;
+    const negotiation = NegotiationSchema.parse({
+      negotiationId,
+      demandId,
+      musicianId,
+      venueId,
+      workflowId: `workflow:${demandId}`,
+      conversationId: `conv:${musicianId}->${venueId}`,
+      status: deal ? "DEAL_CREATED" : "ACTIVE",
+      proposals,
+      deal,
+      createdAt: started.event.timestamp,
+      updatedAt
+    });
+    this.negotiations.set(negotiation.negotiationId, negotiation);
+    if (deal) {
+      this.deals.set(deal.dealId, deal);
+    }
+    return negotiation;
+  }
+
+  private async readRecentStateEvents() {
+    if (!("readRecent" in this.eventBus) || typeof this.eventBus.readRecent !== "function") {
+      return [];
+    }
+    return (await this.eventBus.readRecent(
+      ["negotiation.events", "show.events", "settlement.events"],
+      300
+    )) as Array<{ stream: string; event: { type: string; timestamp: number; data: Record<string, unknown> } }>;
+  }
+
   private async publishA2A(
     negotiation: Negotiation,
     input: Pick<A2AMessage, "sender" | "receiver" | "type" | "payload">
@@ -491,6 +717,57 @@ function runtimeToolsForProposal(input: {
       }
     }
   ];
+}
+
+function buildProposalTerms(input: {
+  demand: Demand;
+  musician: AgentCard;
+  venue: AgentCard;
+  splitSource: AgentCard;
+}): ProposalTerms {
+  const venueFee = numericMetadata(input.venue, "baseFee", 0);
+  const splitPercentage = numericMetadata(input.splitSource, "splitPreference", 25);
+
+  return {
+    venueFee,
+    splitPercentage,
+    schedule: {
+      date: input.demand.preferredDate,
+      startTime: stringMetadata(input.venue, "preferredStartTime", "19:00"),
+      endTime: stringMetadata(input.venue, "preferredEndTime", "22:00")
+    }
+  };
+}
+
+function numericMetadata(card: AgentCard, key: string, fallback: number) {
+  const value = card.metadata[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function stringMetadata(card: AgentCard, key: string, fallback: string) {
+  const value = card.metadata[key];
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function requiredString(value: unknown, key: string) {
+  const next = stringValue(value);
+  if (!next) {
+    throw new NegotiationError(422, `Cannot recover negotiation without ${key}`);
+  }
+  return next;
 }
 
 export class NegotiationError extends Error {

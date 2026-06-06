@@ -171,7 +171,7 @@ export class RegistryService {
   }
 
   async ensureSeeded() {
-    if (this.seeded) {
+    if (this.seeded && this.records.size >= 57) {
       return this.onlineCount();
     }
 

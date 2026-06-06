@@ -8,7 +8,7 @@ type RouteContext = {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    return json(getNegotiationService().getDeal(id));
+    return json(await getNegotiationService().getDealOrRecover(id));
   } catch (error) {
     return errorResponse(error);
   }

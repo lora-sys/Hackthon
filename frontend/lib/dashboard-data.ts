@@ -1,4 +1,4 @@
-import type { AgentCard, AgentType, EventEnvelope } from "@wishlive/shared";
+import type { AgentCard, AgentType, ContractStatus, EventEnvelope } from "@wishlive/shared";
 import type { Edge, Node } from "@xyflow/react";
 
 export const agentTypeColor: Record<AgentType, string> = {
@@ -119,12 +119,23 @@ export function formatStreamEvent(payload: StreamEventPayload): DashboardEvent {
   };
 }
 
-export function metricCards(onlineCount: number) {
+export function metricCards({
+  onlineCount,
+  events,
+  contracts
+}: {
+  onlineCount: number;
+  events: DashboardEvent[];
+  contracts: ContractStatus | null;
+}) {
+  const activeTasks = events.filter((event) => event.stream === "agent.task" || event.stream === "agent.runtime").length;
+  const negotiations = events.filter((event) => event.stream === "negotiation.events").length;
+  const txCount = contracts?.txs.length ?? events.filter((event) => event.stream === "contract.events").length;
   return [
     { label: "Online Agents", value: String(onlineCount), tone: "text-emerald-300" },
-    { label: "Active Tasks", value: "128", tone: "text-sky-300" },
-    { label: "Negotiations", value: "23", tone: "text-orange-300" },
-    { label: "On-chain Tx", value: "15,687", tone: "text-[#ddb7ff]" }
+    { label: "Active Tasks", value: String(activeTasks), tone: "text-sky-300" },
+    { label: "Negotiations", value: String(negotiations), tone: "text-orange-300" },
+    { label: "On-chain Tx", value: String(txCount), tone: "text-[#ddb7ff]" }
   ] as const;
 }
 

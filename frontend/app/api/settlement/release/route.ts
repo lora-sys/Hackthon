@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const escrow = getSettlementService().getEscrow(String(body.escrowId));
-    const deal = getNegotiationService().getDeal(escrow.dealId);
+    const deal = await getNegotiationService().getDealOrRecover(escrow.dealId);
     const result = await getSettlementService().releaseFunds(body, {
       dealConfirmed: deal.status === "CONFIRMED" || deal.status === "SETTLED"
     });

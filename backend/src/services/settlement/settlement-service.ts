@@ -7,6 +7,8 @@ import {
 } from "@wishlive/shared";
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
+import type { ContractService } from "../contracts";
+import type { Address } from "viem";
 
 const SETTLEMENT_STREAM = "settlement.events";
 
@@ -14,7 +16,10 @@ export class SettlementService {
   private readonly escrows = new Map<string, EscrowRecord>();
   private readonly tickets = new Map<string, TicketRecord>();
 
-  constructor(private readonly eventBus: EventBus = new MemoryEventBus()) {}
+  constructor(
+    private readonly eventBus: EventBus = new MemoryEventBus(),
+    private readonly contracts?: ContractService
+  ) {}
 
   listEscrows() {
     return [...this.escrows.values()].sort((left, right) => right.createdAt - left.createdAt);
@@ -42,6 +47,14 @@ export class SettlementService {
       throw new SettlementError(400, "payees and shares length mismatch");
     }
 
+    const onchain = this.contracts
+      ? await this.contracts.createEscrow({
+          dealId: request.dealId,
+          payees: request.payees as Address[],
+          shares: request.shares,
+          amount: options.amount ?? 1_000
+        })
+      : null;
     const now = Date.now();
     const escrow: EscrowRecord = {
       escrowId: `escrow:${crypto.randomUUID()}`,
@@ -50,7 +63,9 @@ export class SettlementService {
       shares: request.shares,
       balance: options.amount ?? 1_000,
       status: "PENDING",
-      txHash: localTxHash("escrow", request.dealId),
+      txHash: onchain?.txHash ?? localTxHash("escrow", request.dealId),
+      contractAddress: onchain?.contractAddress ?? null,
+      onchainEscrowId: onchain?.onchainEscrowId ?? null,
       createdAt: now,
       releasedAt: null
     };
@@ -60,6 +75,8 @@ export class SettlementService {
       escrowId: escrow.escrowId,
       dealId: escrow.dealId,
       txHash: escrow.txHash,
+      contractAddress: escrow.contractAddress,
+      onchainEscrowId: escrow.onchainEscrowId,
       payees: escrow.payees,
       shares: escrow.shares,
       agentSkill: "create_escrow"
@@ -81,8 +98,15 @@ export class SettlementService {
     escrow.status = "RELEASED";
     escrow.releasedAt = Date.now();
     this.escrows.set(escrow.escrowId, escrow);
+    const onchain = this.contracts && escrow.onchainEscrowId
+      ? await this.contracts.releaseEscrow({
+          escrowId: escrow.escrowId,
+          onchainEscrowId: escrow.onchainEscrowId,
+          signature: request.signature
+        })
+      : null;
     return {
-      txHash: localTxHash("release", escrow.escrowId),
+      txHash: onchain?.txHash ?? localTxHash("release", escrow.escrowId),
       escrow
     };
   }
@@ -93,13 +117,22 @@ export class SettlementService {
     }
 
     const request = MintTicketRequestSchema.parse(input);
+    const metadataUri = `ipfs://wishlive/${encodeURIComponent(request.dealId)}`;
+    const onchain = this.contracts
+      ? await this.contracts.mintTicket({
+          dealId: request.dealId,
+          to: request.to as Address,
+          metadataUri
+        })
+      : null;
     const now = Date.now();
     const ticket: TicketRecord = {
-      tokenId: `ticket:${this.tickets.size + 1}`,
+      tokenId: onchain?.tokenId ? `ticket:${onchain.tokenId}` : `ticket:${this.tickets.size + 1}`,
       dealId: request.dealId,
       ownerWallet: request.to,
-      metadataUri: `ipfs://wishlive/${encodeURIComponent(request.dealId)}`,
-      txHash: localTxHash("ticket", request.dealId),
+      metadataUri,
+      txHash: onchain?.txHash ?? localTxHash("ticket", request.dealId),
+      contractAddress: onchain?.contractAddress ?? null,
       createdAt: now
     };
 
@@ -110,6 +143,7 @@ export class SettlementService {
       ownerWallet: ticket.ownerWallet,
       metadataUri: ticket.metadataUri,
       txHash: ticket.txHash,
+      contractAddress: ticket.contractAddress,
       agentSkill: "mint_ticket"
     });
 

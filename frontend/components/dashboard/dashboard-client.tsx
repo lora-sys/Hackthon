@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentCard } from "@wishlive/shared";
+import type { AgentCard, ContractStatus } from "@wishlive/shared";
 import { useEffect, useMemo, useState } from "react";
 import { AgentTopology } from "./agent-topology";
 import {
@@ -22,24 +22,28 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
     byType: {}
   });
   const [sseEvents, setSseEvents] = useState<DashboardEvent[]>([]);
+  const [contracts, setContracts] = useState<ContractStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const [agentsResponse, onlineResponse, historyResponse] = await Promise.all([
+      const [agentsResponse, onlineResponse, historyResponse, contractsResponse] = await Promise.all([
         fetch("/api/agents", { cache: "no-store" }),
         fetch("/api/agents/online", { cache: "no-store" }),
-        fetch("/api/events/history", { cache: "no-store" })
+        fetch("/api/events/history", { cache: "no-store" }),
+        fetch("/api/contracts/status", { cache: "no-store" })
       ]);
       const nextAgents = (await agentsResponse.json()) as AgentCard[];
       const nextOnline = (await onlineResponse.json()) as OnlineCount;
       const history = (await historyResponse.json()) as StreamEventPayload[];
+      const nextContracts = (await contractsResponse.json()) as ContractStatus;
 
       if (!cancelled) {
         setAgents(nextAgents);
         setOnline(nextOnline);
         setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 80));
+        setContracts(nextContracts);
       }
     }
 
@@ -69,7 +73,11 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   const events = useMemo(() => {
     return sseEvents.slice(0, 80);
   }, [sseEvents]);
-  const metrics = metricCards(online.count);
+  const metrics = metricCards({
+    onlineCount: online.count,
+    events,
+    contracts
+  });
 
   return (
     <main className="min-h-screen bg-[#07080d] px-5 py-5 text-white lg:px-8">
@@ -127,7 +135,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
         {!fullScreen && (
           <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
             <EventStream events={events} />
-            <BlockchainStatus />
+            <BlockchainStatus contracts={contracts} />
           </div>
         )}
       </section>
@@ -207,25 +215,37 @@ function NegotiationPanel({ events }: { events: DashboardEvent[] }) {
   );
 }
 
-function BlockchainStatus() {
+function BlockchainStatus({ contracts }: { contracts: ContractStatus | null }) {
+  const cards = [
+    ["AgentProfile", contracts?.addresses.AgentProfile ?? "not deployed"],
+    ["Escrow", contracts?.addresses.Escrow ?? "not deployed"],
+    ["TicketNFT", contracts?.addresses.TicketNFT ?? "not deployed"],
+    ["Hardhat", contracts ? `Chain ${contracts.chainId || "offline"} · ${contracts.healthy ? "healthy" : contracts.mode}` : "loading"]
+  ];
+
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
         Blockchain Status
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        {[
-          ["AgentProfile", "57 cards anchored"],
-          ["Escrow", "15 pools ready"],
-          ["TicketNFT", "128 minted"],
-          ["Hardhat", "Chain 31337 healthy"]
-        ].map(([label, value]) => (
+        {cards.map(([label, value]) => (
           <div className="rounded-lg border border-white/10 bg-[#11131b] p-4" key={label}>
             <p className="font-mono text-xs uppercase text-white/45">{label}</p>
             <p className="mt-2 text-lg font-bold text-white">{value}</p>
           </div>
         ))}
       </div>
+      {contracts?.latestTx && (
+        <p className="mt-3 break-all rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 font-mono text-xs text-emerald-100">
+          latest tx: {contracts.latestTx.type} · {contracts.latestTx.hash}
+        </p>
+      )}
+      {contracts?.error && (
+        <p className="mt-3 rounded-lg border border-orange-300/20 bg-orange-300/10 p-3 text-sm text-orange-100">
+          {contracts.error}
+        </p>
+      )}
     </section>
   );
 }
