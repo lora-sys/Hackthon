@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createHealthPayload, validateAgentCard } from "../src";
+import { AgentCardSchema } from "@wishlive/shared";
+import { createHealthPayload } from "../src";
 
 describe("backend scaffold", () => {
   it("returns a health payload", () => {
@@ -11,7 +12,7 @@ describe("backend scaffold", () => {
 
   it("validates shared AgentCard input", () => {
     expect(
-      validateAgentCard({
+      AgentCardSchema.parse({
         agent_id: "agent:venue:001",
         did: "did:wishlive:venue001",
         wallet: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",

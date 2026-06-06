@@ -14,6 +14,8 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "@wishlive/backend": ["backend/src/index.ts"],
+      "@wishlive/backend/*": ["backend/src/*"],
       "@wishlive/shared": ["shared/src/index.ts"],
       "@wishlive/shared/*": ["shared/src/*"]
     }
