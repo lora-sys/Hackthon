@@ -3,7 +3,12 @@
 import type { AgentCard } from "@wishlive/shared";
 import { useEffect, useMemo, useState } from "react";
 import { AgentTopology } from "./agent-topology";
-import { buildEventStream, metricCards, type DashboardEvent } from "../../lib/dashboard-data";
+import {
+  formatStreamEvent,
+  metricCards,
+  type DashboardEvent,
+  type StreamEventPayload
+} from "../../lib/dashboard-data";
 
 type OnlineCount = {
   count: number;
@@ -22,16 +27,19 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
     let cancelled = false;
 
     async function load() {
-      const [agentsResponse, onlineResponse] = await Promise.all([
+      const [agentsResponse, onlineResponse, historyResponse] = await Promise.all([
         fetch("/api/agents", { cache: "no-store" }),
-        fetch("/api/agents/online", { cache: "no-store" })
+        fetch("/api/agents/online", { cache: "no-store" }),
+        fetch("/api/events/history", { cache: "no-store" })
       ]);
       const nextAgents = (await agentsResponse.json()) as AgentCard[];
       const nextOnline = (await onlineResponse.json()) as OnlineCount;
+      const history = (await historyResponse.json()) as StreamEventPayload[];
 
       if (!cancelled) {
         setAgents(nextAgents);
         setOnline(nextOnline);
+        setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 24));
       }
     }
 
@@ -49,8 +57,8 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   useEffect(() => {
     const source = new EventSource("/api/events/stream");
     source.onmessage = (message) => {
-      const event = JSON.parse(message.data) as DashboardEvent;
-      setSseEvents((current) => [event, ...current].slice(0, 24));
+      const event = formatStreamEvent(JSON.parse(message.data) as StreamEventPayload);
+      setSseEvents((current) => uniqueEvents([event, ...current]).slice(0, 24));
     };
 
     return () => {
@@ -59,9 +67,8 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   }, []);
 
   const events = useMemo(() => {
-    const baseline = buildEventStream(agents);
-    return [...sseEvents, ...baseline].slice(0, 24);
-  }, [agents, sseEvents]);
+    return sseEvents.slice(0, 24);
+  }, [sseEvents]);
   const metrics = metricCards(online.count);
 
   return (
@@ -131,7 +138,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
 function EventStream({
   events
 }: {
-  events: Array<{ time: string; type: string; agent: string; detail: string }>;
+  events: DashboardEvent[];
 }) {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
@@ -150,7 +157,7 @@ function EventStream({
           </thead>
           <tbody>
             {events.map((event) => (
-              <tr className="border-t border-white/8" key={`${event.time}-${event.agent}`}>
+              <tr className="border-t border-white/8" key={event.id}>
                 <td className="p-3 font-mono text-white/45">{event.time}</td>
                 <td className="p-3 text-[#ddb7ff]">{event.type}</td>
                 <td className="p-3 text-white/70">{event.agent}</td>
@@ -214,4 +221,15 @@ function BlockchainStatus() {
       </div>
     </section>
   );
+}
+
+function uniqueEvents(events: DashboardEvent[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    if (seen.has(event.id)) {
+      return false;
+    }
+    seen.add(event.id);
+    return true;
+  });
 }

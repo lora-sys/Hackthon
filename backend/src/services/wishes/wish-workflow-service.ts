@@ -1,0 +1,237 @@
+import {
+  DemandSchema,
+  WishCreateRequestSchema,
+  WishSchema,
+  type Demand,
+  type EventEnvelope,
+  type MatchingResult,
+  type Wish,
+  type WishCreateRequest
+} from "@wishlive/shared";
+import type { EventBus } from "../events";
+import { createEventEnvelope, MemoryEventBus } from "../events";
+import type { RegistryService } from "../registry";
+import { matchDemand } from "./matching-engine";
+
+const MIN_THRESHOLD = 10;
+const WISH_STREAM = "wish.events";
+const DEMAND_STREAM = "demand.events";
+const MATCHING_STREAM = "matching.events";
+
+export class WishWorkflowService {
+  private readonly wishes = new Map<string, Wish>();
+  private readonly demands = new Map<string, Demand>();
+  private readonly cohortDemandIds = new Map<string, string>();
+
+  constructor(
+    private readonly registry: RegistryService,
+    private readonly eventBus: EventBus = new MemoryEventBus()
+  ) {}
+
+  async submitWish(input: unknown) {
+    const request = WishCreateRequestSchema.parse(input);
+    const now = Date.now();
+    const wish = WishSchema.parse({
+      wishId: `wish:${crypto.randomUUID()}`,
+      userId: request.userId,
+      artistName: request.artistName,
+      genre: request.genre.toLowerCase(),
+      city: request.city.toLowerCase(),
+      preferredDate: request.date,
+      depositAmount: request.depositAmount,
+      status: "ACTIVE",
+      createdAt: now
+    });
+
+    this.wishes.set(wish.wishId, wish);
+    await this.publish(WISH_STREAM, "wish.created", "agent:audience:001", {
+      wishId: wish.wishId,
+      userId: wish.userId,
+      artistName: wish.artistName,
+      genre: wish.genre,
+      city: wish.city,
+      preferredDate: wish.preferredDate
+    });
+
+    const demand = await this.processWishWithAgents(wish, request, now);
+
+    return {
+      wishId: wish.wishId,
+      demand,
+      matching: demand?.matching ?? null
+    };
+  }
+
+  listWishes(input: { userId?: string; status?: Wish["status"] } = {}) {
+    return [...this.wishes.values()]
+      .filter((wish) => !input.userId || wish.userId === input.userId)
+      .filter((wish) => !input.status || wish.status === input.status)
+      .sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  listDemands() {
+    return [...this.demands.values()].sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async withdrawWish(wishId: string) {
+    const wish = this.wishes.get(wishId);
+    if (!wish) {
+      throw new WishWorkflowError(404, `Wish not found: ${wishId}`);
+    }
+    if (wish.status === "WITHDRAWN") {
+      return { status: wish.status };
+    }
+
+    wish.status = "WITHDRAWN";
+    await this.publish(WISH_STREAM, "wish.withdrawn", "agent:audience:001", {
+      wishId
+    });
+    return { status: wish.status };
+  }
+
+  resetForTests() {
+    this.wishes.clear();
+    this.demands.clear();
+    this.cohortDemandIds.clear();
+  }
+
+  private async processWishWithAgents(wish: Wish, request: WishCreateRequest, now: number) {
+    const cohortKey = this.findCohortKey(wish);
+    const cohortWishes = this.activeWishesForCohort(wish);
+    await this.publish(WISH_STREAM, "wish.aggregated", "agent:business:003", {
+      wishId: wish.wishId,
+      cohortKey,
+      count: cohortWishes.length,
+      agentSkill: "aggregate_wishes"
+    });
+
+    let demand = this.getDemandForCohort(cohortKey);
+    if (demand) {
+      demand.wishCount = cohortWishes.length;
+      demand.wishIds = cohortWishes.map((entry) => entry.wishId);
+      this.demands.set(demand.demandId, DemandSchema.parse(demand));
+      return this.demands.get(demand.demandId) ?? demand;
+    }
+
+    if (cohortWishes.length < MIN_THRESHOLD) {
+      return null;
+    }
+
+    await this.publish(DEMAND_STREAM, "demand.threshold_reached", "agent:business:004", {
+      cohortKey,
+      count: cohortWishes.length,
+      threshold: MIN_THRESHOLD,
+      agentSkill: "check_threshold"
+    });
+
+    demand = DemandSchema.parse({
+      demandId: `demand:${crypto.randomUUID()}`,
+      artistName: request.artistName,
+      genre: wish.genre,
+      city: wish.city,
+      preferredDate: wish.preferredDate,
+      wishCount: cohortWishes.length,
+      threshold: MIN_THRESHOLD,
+      status: "MATCHING",
+      wishIds: cohortWishes.map((entry) => entry.wishId),
+      matching: null,
+      createdAt: now
+    });
+
+    this.demands.set(demand.demandId, demand);
+    this.cohortDemandIds.set(cohortKey, demand.demandId);
+    await this.publish(DEMAND_STREAM, "demand.created", "agent:business:004", {
+      demandId: demand.demandId,
+      cohortKey,
+      wishCount: demand.wishCount,
+      threshold: demand.threshold,
+      agentSkill: "create_demand"
+    });
+
+    const matching = await this.runMatching(demand);
+    demand.status = "MATCHED";
+    demand.matching = matching;
+    this.demands.set(demand.demandId, DemandSchema.parse(demand));
+
+    return this.demands.get(demand.demandId) ?? demand;
+  }
+
+  private async runMatching(demand: Demand): Promise<MatchingResult> {
+    await this.publish(MATCHING_STREAM, "matching.started", "agent:business:005", {
+      demandId: demand.demandId,
+      genre: demand.genre,
+      city: demand.city,
+      agentSkill: "rank_candidates"
+    });
+
+    const matching = await matchDemand({
+      demand,
+      registry: this.registry
+    });
+
+    await this.publish(MATCHING_STREAM, "matching.completed", "agent:business:005", {
+      demandId: demand.demandId,
+      musicians: matching.musicians,
+      venues: matching.venues,
+      agentSkill: "rank_candidates"
+    });
+
+    return matching;
+  }
+
+  private findCohortKey(wish: Wish) {
+    const existing = [...this.wishes.values()].find(
+      (entry) =>
+        entry.status === "ACTIVE" &&
+        entry.genre === wish.genre &&
+        entry.city === wish.city &&
+        daysApart(entry.preferredDate, wish.preferredDate) <= 3
+    );
+
+    return [
+      existing?.genre ?? wish.genre,
+      existing?.city ?? wish.city,
+      existing?.preferredDate ?? wish.preferredDate
+    ].join("|");
+  }
+
+  private activeWishesForCohort(wish: Wish) {
+    return [...this.wishes.values()].filter(
+      (entry) =>
+        entry.status === "ACTIVE" &&
+        entry.genre === wish.genre &&
+        entry.city === wish.city &&
+        daysApart(entry.preferredDate, wish.preferredDate) <= 3
+    );
+  }
+
+  private getDemandForCohort(cohortKey: string) {
+    const demandId = this.cohortDemandIds.get(cohortKey);
+    return demandId ? this.demands.get(demandId) : undefined;
+  }
+
+  private async publish(stream: string, type: string, source: string, data: Record<string, unknown>) {
+    const event = createEventEnvelope({
+      type,
+      source,
+      data
+    }) satisfies EventEnvelope;
+    await this.eventBus.publish(stream, event);
+  }
+}
+
+export class WishWorkflowError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "WishWorkflowError";
+  }
+}
+
+function daysApart(left: string, right: string) {
+  const leftTime = new Date(`${left}T00:00:00Z`).getTime();
+  const rightTime = new Date(`${right}T00:00:00Z`).getTime();
+  return Math.abs(leftTime - rightTime) / 86_400_000;
+}

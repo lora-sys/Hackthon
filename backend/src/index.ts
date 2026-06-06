@@ -1,5 +1,6 @@
 export * from "./services/events";
 export * from "./services/registry";
+export * from "./services/wishes";
 
 export const serviceName = "wishlive-backend";
 

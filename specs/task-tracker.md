@@ -19,9 +19,9 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P5-01 | Dashboard | Build Live Dashboard primary screen | REVIEW | P4 | browser screenshot evidence | `/tmp/wishlive-phase5-dashboard.png` |
 | P5-02 | Topology | Build React Flow topology with 57+ nodes | REVIEW | P5-01 | node count >= 57 in browser | `/tmp/wishlive-phase5-topology-mobile.png` |
 | P5-03 | Dashboard | Add metrics, event stream, negotiation, blockchain panels | REVIEW | P5-01 | 20 events and latency < 2s | Browser snapshot shows 24 event rows; SSE curl emits 1s cadence |
-| P6-01 | Wish | Implement Wish Pool and wish APIs | TODO | P5 | API and browser flow pass | Pending |
-| P6-02 | Demand | Implement Demand Pool threshold aggregation | TODO | P6-01 | 10 wishes create 1 demand | Pending |
-| P6-03 | Matching | Implement Top 3 matching formula | TODO | P6-02 | formula unit tests pass | Pending |
+| P6-01 | Wish | Implement Wish Pool and wish APIs | REVIEW | P5 | API and browser flow pass | `/api/wishes`, `/wish-pool`, Browser screenshot `/tmp/wishlive-phase6-wish-pool.png` |
+| P6-02 | Demand | Implement Demand Pool threshold aggregation | REVIEW | P6-01 | 10 wishes create 1 demand | Browser shows `10/10 wishes`; `/api/wishes/demands` returns 1 `MATCHED` demand; Redis `demand.events` XLEN=2 |
+| P6-03 | Matching | Implement Top 3 matching formula | REVIEW | P6-02 | formula unit tests pass | Browser shows musician Top 3 + venue Top 3; API returns 3/3 candidates; Redis `matching.events` XLEN=2; formula unit test passed |
 | P7-01 | Negotiation | Implement A2A proposal/counter/accept/reject | TODO | P6 | Redis event chain visible | Pending |
 | P7-02 | Settlement | Implement ShowConfirm and settlement service | TODO | P7-01 | release blocked before confirmation | Pending |
 | P7-03 | Contracts | Implement AgentProfile, Escrow, TicketNFT | TODO | P7-02 | Hardhat tests pass | Pending |
