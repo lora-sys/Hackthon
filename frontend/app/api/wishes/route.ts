@@ -1,4 +1,4 @@
-import { getWishWorkflowService } from "@wishlive/backend";
+import { getNegotiationService, getWishWorkflowService } from "@wishlive/backend";
 import { WishStatusSchema } from "@wishlive/shared";
 import { errorResponse, json } from "../_lib/respond";
 
@@ -26,7 +26,19 @@ export async function POST(request: Request) {
   try {
     const service = getWishWorkflowService();
     const payload = await request.json();
-    return json(await service.submitWish(payload), 201);
+    const result = await service.submitWish(payload);
+    if (!result.demand?.matching) {
+      return json(result, 201);
+    }
+
+    const negotiation = await getNegotiationService().runAutonomousNegotiation(result.demand);
+    return json(
+      {
+        ...result,
+        negotiationId: negotiation.negotiationId
+      },
+      201
+    );
   } catch (error) {
     return errorResponse(error);
   }

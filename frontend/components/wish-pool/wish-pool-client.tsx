@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@heroui/react";
-import type { AgentCard, Deal, Demand, Negotiation, Wish } from "@wishlive/shared";
+import type { Demand, Wish } from "@wishlive/shared";
 import { WishCreateRequestSchema } from "@wishlive/shared";
 import type { InputHTMLAttributes } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -21,6 +21,7 @@ type WishCreateResponse = {
   wishId: string;
   demand: Demand | null;
   matching: Demand["matching"];
+  negotiationId?: string;
 };
 
 const defaultWish: WishFormValues = {
@@ -40,6 +41,7 @@ export function WishPoolClient() {
   const [submitting, setSubmitting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [autoNegotiation, setAutoNegotiation] = useState<string | null>(null);
+  const [operatorMode, setOperatorMode] = useState(false);
   const { register, handleSubmit, reset } = useForm<WishFormValues>({
     defaultValues: defaultWish
   });
@@ -62,6 +64,7 @@ export function WishPoolClient() {
   }
 
   useEffect(() => {
+    setOperatorMode(new URLSearchParams(window.location.search).get("operator") === "1");
     void refresh();
   }, []);
 
@@ -120,8 +123,8 @@ export function WishPoolClient() {
     setError(null);
     try {
       const result = await postWish(values);
-      if (result.demand?.matching) {
-        const negotiationId = await startAgentNegotiation(result.demand);
+      if (result.negotiationId) {
+        const negotiationId = result.negotiationId;
         setAutoNegotiation(negotiationId);
         window.location.href = `/negotiation/${encodeURIComponent(negotiationId)}`;
         return;
@@ -145,8 +148,8 @@ export function WishPoolClient() {
           ...defaultWish,
           userId: `user:audience:${runId}:${index}`
         });
-        if (result.demand?.matching) {
-          const negotiationId = await startAgentNegotiation(result.demand);
+        if (result.negotiationId) {
+          const negotiationId = result.negotiationId;
           setAutoNegotiation(negotiationId);
           window.location.href = `/negotiation/${encodeURIComponent(negotiationId)}`;
           return;
@@ -172,13 +175,15 @@ export function WishPoolClient() {
               Wish → Demand → Matching
             </h1>
           </div>
-          <Button
-            className="rounded-lg bg-[#ddb7ff] px-5 py-3 font-bold text-[#22003f]"
-            isDisabled={seeding}
-            onPress={() => void seedTenWishes()}
-          >
-            {seeding ? "Creating cohort..." : "Create 10-Agent Cohort"}
-          </Button>
+          {operatorMode && (
+            <Button
+              className="rounded-lg bg-[#ddb7ff] px-5 py-3 font-bold text-[#22003f]"
+              isDisabled={seeding}
+              onPress={() => void seedTenWishes()}
+            >
+              {seeding ? "Creating cohort..." : "Operator: Create 10-Agent Cohort"}
+            </Button>
+          )}
         </header>
 
         <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -407,79 +412,6 @@ async function postWish(values: WishFormValues) {
   }
 
   return (await response.json()) as WishCreateResponse;
-}
-
-async function startAgentNegotiation(demand: Demand) {
-  const musicianId = demand.matching?.musicians[0]?.agentId;
-  const venueId = demand.matching?.venues[0]?.agentId;
-  if (!musicianId || !venueId) {
-    throw new Error("Matching candidates are required before negotiation");
-  }
-
-  const [musician, venue] = await Promise.all([
-    fetchJson(`/api/registry/${encodeURIComponent(musicianId)}`) as Promise<AgentCard>,
-    fetchJson(`/api/registry/${encodeURIComponent(venueId)}`) as Promise<AgentCard>
-  ]);
-  const venueFee = Number(venue.metadata.baseFee ?? 5_000);
-  const musicianSplit = Number(musician.metadata.splitPreference ?? 25);
-  const venueSplit = Number(venue.metadata.splitPreference ?? 22);
-  const initialTerms = {
-    venueFee,
-    splitPercentage: musicianSplit,
-    schedule: {
-      date: demand.preferredDate,
-      startTime: "19:00",
-      endTime: "22:00"
-    }
-  };
-
-  const negotiation = (await postJson("/api/negotiation", {
-    demandId: demand.demandId,
-    musicianId,
-    venueId
-  })) as Negotiation;
-  const proposal = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/proposal`, {
-    from: musicianId,
-    to: venueId,
-    terms: initialTerms
-  })) as { proposalId: string };
-  const counter = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/counter`, {
-    proposalId: proposal.proposalId,
-    from: venueId,
-    newTerms: {
-      ...initialTerms,
-      venueFee,
-      splitPercentage: venueSplit
-    }
-  })) as { proposalId: string };
-  await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/accept`, {
-    proposalId: counter.proposalId,
-    from: musicianId
-  }) as { deal: Deal };
-
-  return negotiation.negotiationId;
-}
-
-async function fetchJson(url: string) {
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    const body = await readErrorBody(response);
-    throw new Error(body.error ?? `GET ${url} failed`);
-  }
-  return response.json();
-}
-
-async function postJson(url: string, body: unknown) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) {
-    const payload = await readErrorBody(response);
-    throw new Error(payload.error ?? `POST ${url} failed`);
-  }
-  return response.json();
 }
 
 async function readErrorBody(response: Response) {

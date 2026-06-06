@@ -189,6 +189,8 @@ export function createSeedAgentCards(): AgentCard[] {
           capacity,
           baseFee: 3_000 + capacity * 4,
           availableDates: availabilityCalendar(index + 10),
+          preferredStartTime: capacity >= 500 ? "20:00" : "19:30",
+          preferredEndTime: capacity >= 500 ? "23:00" : "22:00",
           splitPreference: 18 + (index % 3) * 4,
           managerAgentId,
           amenities: ["lighting", "bar", capacity >= 500 ? "vip-balcony" : "standing-room"]

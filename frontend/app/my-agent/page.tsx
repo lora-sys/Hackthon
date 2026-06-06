@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgentCard } from "@wishlive/shared";
+import type { AgentCard, AgentSession, Deal, Negotiation, TicketRecord } from "@wishlive/shared";
 import { useEffect, useMemo, useState } from "react";
 import { formatStreamEvent, type DashboardEvent, type StreamEventPayload } from "../../lib/dashboard-data";
 
@@ -8,10 +8,21 @@ export default function MyAgentPage() {
   const [agentId, setAgentId] = useState("agent:musician:001");
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [events, setEvents] = useState<DashboardEvent[]>([]);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [tickets, setTickets] = useState<TicketRecord[]>([]);
+
+  useEffect(() => {
+    const requestedAgentId = new URLSearchParams(window.location.search).get("agentId");
+    if (requestedAgentId) {
+      setAgentId(requestedAgentId);
+    }
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [agentId]);
 
   useEffect(() => {
     const source = new EventSource("/api/events/stream");
@@ -26,9 +37,13 @@ export default function MyAgentPage() {
   }, [agentId]);
 
   async function refresh() {
-    const [agentsResponse, eventsResponse] = await Promise.all([
+    const [agentsResponse, eventsResponse, sessionsResponse, negotiationsResponse, dealsResponse, ticketsResponse] = await Promise.all([
       fetch("/api/agents", { cache: "no-store" }),
-      fetch("/api/events/history", { cache: "no-store" })
+      fetch("/api/events/history", { cache: "no-store" }),
+      fetch(`/api/runtime/sessions?agentId=${encodeURIComponent(agentId)}`, { cache: "no-store" }),
+      fetch(`/api/negotiation?agentId=${encodeURIComponent(agentId)}`, { cache: "no-store" }),
+      fetch("/api/deals", { cache: "no-store" }),
+      fetch("/api/settlement/tickets", { cache: "no-store" })
     ]);
     const nextAgents = (await agentsResponse.json()) as AgentCard[];
     const history = ((await eventsResponse.json()) as StreamEventPayload[])
@@ -36,6 +51,14 @@ export default function MyAgentPage() {
       .filter((event) => event.agent.includes(agentId.replace("agent:", "")) || event.detail.includes(agentId));
     setAgents(nextAgents);
     setEvents(uniqueEvents(history).slice(0, 24));
+    setSessions((await sessionsResponse.json()) as AgentSession[]);
+    setNegotiations((await negotiationsResponse.json()) as Negotiation[]);
+    setDeals(
+      ((await dealsResponse.json()) as Deal[]).filter(
+        (deal) => deal.musicianAgentId === agentId || deal.venueAgentId === agentId
+      )
+    );
+    setTickets((await ticketsResponse.json()) as TicketRecord[]);
   }
 
   const agent = useMemo(
@@ -57,7 +80,11 @@ export default function MyAgentPage() {
           </div>
           <select
             className="h-11 rounded-lg border border-white/10 bg-[#11131b] px-3 text-sm text-white"
-            onChange={(event) => setAgentId(event.target.value)}
+            onChange={(event) => {
+              const nextAgentId = event.target.value;
+              setAgentId(nextAgentId);
+              window.history.replaceState(null, "", `/my-agent?agentId=${encodeURIComponent(nextAgentId)}`);
+            }}
             value={agentId}
           >
             {agents
@@ -94,9 +121,33 @@ export default function MyAgentPage() {
           <section className="grid gap-5">
             <div className="grid gap-3 sm:grid-cols-3">
               <Metric label="Reputation" value={String(agent?.reputation ?? 0)} />
-              <Metric label="Tool Calls" value={String(events.filter((event) => event.type === "agent.tool_call").length)} />
+              <Metric label="Tool Calls" value={String(sessions.reduce((total, session) => total + session.toolCalls.length, 0))} />
               <Metric label="A2A Inbox" value={String(events.filter((event) => event.stream === "agent.task").length)} />
             </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Metric label="Negotiations" value={String(negotiations.length)} />
+              <Metric label="Deals" value={String(deals.length)} />
+              <Metric label="Tickets" value={String(tickets.length)} />
+            </div>
+
+            <section className="rounded-lg border border-[#22d3ee]/20 bg-[#11131b] p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
+                Runtime Sessions
+              </h2>
+              <div className="mt-4 grid max-h-[280px] gap-2 overflow-auto">
+                {sessions.map((session) => (
+                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={session.sessionId}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-[#22d3ee]">{session.mode}</span>
+                      <span className="font-mono text-xs text-white/35">{session.toolCalls.length} tools</span>
+                    </div>
+                    <p className="mt-1 break-all text-sm text-white/65">{session.messages[0]?.content ?? session.conversationId}</p>
+                  </div>
+                ))}
+                {sessions.length === 0 && <p className="text-sm text-white/50">No runtime sessions for this agent yet.</p>}
+              </div>
+            </section>
 
             <section className="rounded-lg border border-[#ddb7ff]/20 bg-[#11131b] p-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">

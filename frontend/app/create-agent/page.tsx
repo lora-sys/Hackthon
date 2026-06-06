@@ -64,14 +64,28 @@ function CreateAgentContent() {
   const searchParams = useSearchParams();
   const initialRole = parseRole(searchParams.get("role"));
   const [role, setRole] = useState<AgentType>(initialRole);
+  const [localIds] = useState<Record<AgentType, string>>(() => ({
+    audience: cryptoSafeId(),
+    musician: cryptoSafeId(),
+    venue: cryptoSafeId(),
+    manager: cryptoSafeId(),
+    business: cryptoSafeId(),
+    infrastructure: cryptoSafeId()
+  }));
   const [registered, setRegistered] = useState<{ agentId: string; status: string } | null>(null);
+  const [onchain, setOnchain] = useState<{
+    txHash: string;
+    contractAddress: string;
+    onchainAgentId: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const card = useMemo(() => buildCard(role), [role]);
+  const card = useMemo(() => buildCard(role, localIds[role]), [role, localIds]);
 
   async function registerAgent() {
     setError(null);
     setRegistered(null);
+    setOnchain(null);
     const response = await fetch("/api/registry/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,7 +96,25 @@ function CreateAgentContent() {
       setError(body.error ?? "Agent registration failed");
       return;
     }
-    setRegistered((await response.json()) as { agentId: string; status: string });
+    const registryResult = (await response.json()) as { agentId: string; status: string };
+    setRegistered(registryResult);
+
+    const chainResponse = await fetch("/api/contracts/register-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId: card.agent_id,
+        did: card.did,
+        wallet: card.wallet,
+        agentCard: card
+      })
+    });
+    if (!chainResponse.ok) {
+      const body = await readErrorBody(chainResponse);
+      setError(body.error ?? "AgentProfile localnet registration failed");
+      return;
+    }
+    setOnchain((await chainResponse.json()) as { txHash: string; contractAddress: string; onchainAgentId: string });
   }
 
   return (
@@ -115,7 +147,7 @@ function CreateAgentContent() {
                   type="button"
                 >
                   <span className="font-mono text-xs uppercase text-white/45">{item}</span>
-                  <p className="mt-2 font-bold text-white">{buildCard(item).name}</p>
+                  <p className="mt-2 font-bold text-white">{buildCard(item, localIds[item]).name}</p>
                 </button>
               ))}
             </div>
@@ -124,7 +156,15 @@ function CreateAgentContent() {
               <Info label="A2A endpoint" value={card.supported_interfaces[0]?.url ?? "not set"} />
               <Info label="Skills" value={card.skills.join(", ")} />
               <Info label="Reputation" value={String(card.reputation)} />
-              <Info label="AgentProfile" value="localnet pending anchor" />
+              <Info
+                label="AgentProfile"
+                value={
+                  onchain
+                    ? `registered #${onchain.onchainAgentId} · ${onchain.contractAddress}`
+                    : "ready for localnet registration"
+                }
+              />
+              {onchain && <Info label="Tx Hash" value={onchain.txHash} />}
             </div>
 
             {error && (
@@ -176,9 +216,9 @@ function parseRole(value: string | null): AgentType {
   return "audience";
 }
 
-function buildCard(role: AgentType): AgentCard {
+function buildCard(role: AgentType, localId: string): AgentCard {
   const defaults = roleDefaults[role];
-  const agentId = `agent:${role}:local-${cryptoSafeId()}`;
+  const agentId = `agent:${role}:local-${localId}`;
   return {
     agent_id: agentId,
     did: `did:wishlive:${role}:local`,
@@ -226,6 +266,18 @@ function buildCard(role: AgentType): AgentCard {
     systemPrompt: `You are a local ${role} agent. Use tools and emit Redis events.`,
     metadata: defaults.metadata
   };
+}
+
+async function readErrorBody(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+  try {
+    return JSON.parse(text) as { error?: string };
+  } catch {
+    return { error: text };
+  }
 }
 
 function cryptoSafeId() {

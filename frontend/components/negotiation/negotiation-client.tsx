@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@heroui/react";
-import type { Deal, Demand, Negotiation } from "@wishlive/shared";
+import type { Deal, Negotiation } from "@wishlive/shared";
 import { useEffect, useState } from "react";
 import { formatStreamEvent, type DashboardEvent, type StreamEventPayload } from "../../lib/dashboard-data";
 
@@ -9,16 +9,6 @@ type RunState = {
   negotiation: Negotiation | null;
   deal: Deal | null;
   settlement: unknown;
-};
-
-const baseTerms = {
-  venueFee: 5_000,
-  splitPercentage: 25,
-  schedule: {
-    date: "2026-07-17",
-    startTime: "19:00",
-    endTime: "22:00"
-  }
 };
 
 export function NegotiationClient({ negotiationId }: { negotiationId: string }) {
@@ -47,7 +37,8 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
         event.stream === "agent.runtime" ||
         event.stream === "negotiation.events" ||
         event.stream === "show.events" ||
-        event.stream === "settlement.events"
+        event.stream === "settlement.events" ||
+        event.stream === "contract.events"
       ) {
         setEvents((current) => uniqueEvents([event, ...current]).slice(0, 24));
       }
@@ -62,37 +53,12 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
     setRunning(true);
     setError(null);
     try {
-      const demand = await ensureDemand();
-      const musicianId = demand.matching?.musicians[0]?.agentId;
-      const venueId = demand.matching?.venues[0]?.agentId;
-      if (!musicianId || !venueId) {
-        throw new Error("Matching candidates are required before negotiation");
+      const negotiation = await createAutonomousNegotiation();
+      const dealId = negotiation.deal?.dealId;
+      if (!dealId) {
+        throw new Error("Autonomous negotiation did not create a deal");
       }
-
-      const negotiation = (await postJson("/api/negotiation", {
-        demandId: demand.demandId,
-        musicianId,
-        venueId
-      })) as Negotiation;
-      const proposal = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/proposal`, {
-        from: musicianId,
-        to: venueId,
-        terms: baseTerms
-      })) as { proposalId: string };
-      const counter = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/counter`, {
-        proposalId: proposal.proposalId,
-        from: venueId,
-        newTerms: {
-          ...baseTerms,
-          venueFee: 4_000,
-          splitPercentage: 22
-        }
-      })) as { proposalId: string };
-      const accepted = (await postJson(`/api/negotiation/${encodeURIComponent(negotiation.negotiationId)}/accept`, {
-        proposalId: counter.proposalId,
-        from: musicianId
-      })) as { deal: Deal };
-      const settled = await postJson(`/api/deals/${encodeURIComponent(accepted.deal.dealId)}/confirm`, {
+      const settled = await postJson(`/api/deals/${encodeURIComponent(dealId)}/confirm`, {
         signature: "browser-human-confirmation"
       });
       const nextNegotiation = (await fetchJson(
@@ -115,10 +81,36 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
   async function refreshEvents() {
     const history = ((await fetchJson("/api/events/history")) as StreamEventPayload[])
       .filter((entry) =>
-        ["agent.task", "agent.runtime", "negotiation.events", "show.events", "settlement.events"].includes(entry.stream)
+        ["agent.task", "agent.runtime", "negotiation.events", "show.events", "settlement.events", "contract.events"].includes(entry.stream)
       )
       .map(formatStreamEvent);
     setEvents(uniqueEvents(history).slice(0, 24));
+  }
+
+  async function confirmDeal() {
+    if (!state.deal?.dealId) {
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    try {
+      const settled = await postJson(`/api/deals/${encodeURIComponent(state.deal.dealId)}/confirm`, {
+        signature: "browser-human-confirmation"
+      });
+      const nextNegotiation = state.negotiation
+        ? ((await fetchJson(`/api/negotiation/${encodeURIComponent(state.negotiation.negotiationId)}`)) as Negotiation)
+        : null;
+      setState({
+        negotiation: nextNegotiation,
+        deal: nextNegotiation?.deal ?? state.deal,
+        settlement: settled
+      });
+      await refreshEvents();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Human confirmation failed");
+    } finally {
+      setRunning(false);
+    }
   }
 
   async function refreshNegotiation() {
@@ -174,6 +166,20 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
               <StateRow label="Escrow" value={state.deal?.escrowId ?? "blocked until confirm"} />
               <StateRow label="Ticket" value={state.deal?.ticketId ?? "blocked until confirm"} />
             </div>
+            {state.deal?.status === "PENDING_CONFIRMATION" && (
+              <Button
+                className="mt-5 w-full rounded-lg bg-[#22d3ee] px-5 py-3 font-bold text-[#041015]"
+                isDisabled={running}
+                onPress={() => void confirmDeal()}
+              >
+                Human Confirm: create escrow + mint ticket
+              </Button>
+            )}
+            {state.settlement ? (
+              <p className="mt-4 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm text-emerald-100">
+                ShowConfirm completed. Localnet escrow and TicketNFT events are in the event chain.
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-lg border border-[#ddb7ff]/20 bg-[#11131b] p-5">
@@ -185,7 +191,14 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
                 .filter((event) => event.stream === "agent.runtime" || event.stream === "agent.task")
                 .slice(0, 8)
                 .map((event) => (
-                  <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3" key={event.id}>
+                  <div
+                    className={`max-w-[92%] rounded-lg border p-3 ${
+                      event.agent.includes("venue")
+                        ? "ml-auto border-orange-300/20 bg-orange-300/10"
+                        : "border-[#22d3ee]/20 bg-[#22d3ee]/10"
+                    }`}
+                    key={event.id}
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-mono text-xs text-[#22d3ee]">{event.agent}</p>
                       <p className="font-mono text-xs text-white/40">{event.type}</p>
@@ -247,31 +260,23 @@ function StateRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-async function ensureDemand(): Promise<Demand> {
-  let demands = (await fetchJson("/api/wishes/demands")) as Demand[];
-  const existing = demands.find((demand) => demand.status === "MATCHED" && demand.matching);
-  if (existing) {
-    return existing;
-  }
-
+async function createAutonomousNegotiation(): Promise<Negotiation> {
   const runId = crypto.randomUUID().slice(0, 8);
   for (let index = 1; index <= 10; index += 1) {
-    await postJson("/api/wishes", {
+    const result = (await postJson("/api/wishes", {
       userId: `user:negotiation:${runId}:${index}`,
       artistName: "Neon Harbor",
       genre: "rock",
       city: "shanghai",
       date: "2026-07-17",
       depositAmount: 20
-    });
+    })) as { negotiationId?: string };
+    if (result.negotiationId) {
+      return (await fetchJson(`/api/negotiation/${encodeURIComponent(result.negotiationId)}`)) as Negotiation;
+    }
   }
 
-  demands = (await fetchJson("/api/wishes/demands")) as Demand[];
-  const created = demands.find((demand) => demand.status === "MATCHED" && demand.matching);
-  if (!created) {
-    throw new Error("Demand creation failed");
-  }
-  return created;
+  throw new Error("Autonomous negotiation was not created after demand threshold");
 }
 
 async function fetchJson(url: string) {

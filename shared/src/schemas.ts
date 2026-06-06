@@ -203,7 +203,8 @@ export const AgentToolCallSchema = z.object({
   name: z.string().min(1),
   input: z.record(z.string(), z.unknown()),
   output: z.record(z.string(), z.unknown()).optional(),
-  createdAt: z.number().int().positive()
+  createdAt: z.number().int().positive(),
+  completedAt: z.number().int().positive().optional()
 });
 
 export const AgentSessionMessageSchema = z.object({
@@ -229,10 +230,18 @@ export const AgentSessionSchema = z.object({
     agent_id: z.string().min(1),
     conversation_id: z.string().min(1),
     model: z.string().min(1),
-    trace_id: z.string().min(1)
+    trace_id: z.string().min(1),
+    langfuse_enabled: z.boolean().default(false),
+    langfuse_trace_url: z.string().min(1).nullable().default(null)
   }),
   createdAt: z.number().int().positive(),
   updatedAt: z.number().int().positive()
+});
+
+export const RuntimeSessionListRequestSchema = z.object({
+  agentId: z.string().min(1).optional(),
+  workflowId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional()
 });
 
 export const ShowScheduleSchema = z.object({
@@ -347,6 +356,8 @@ export const EscrowRecordSchema = z.object({
   balance: z.number().nonnegative(),
   status: EscrowStatusSchema,
   txHash: z.string().min(1),
+  contractAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).nullable().default(null),
+  onchainEscrowId: z.string().min(1).nullable().default(null),
   createdAt: z.number().int().positive(),
   releasedAt: z.number().int().positive().nullable()
 });
@@ -357,6 +368,7 @@ export const TicketRecordSchema = z.object({
   ownerWallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   metadataUri: z.string().min(1),
   txHash: z.string().min(1),
+  contractAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).nullable().default(null),
   createdAt: z.number().int().positive()
 });
 
@@ -394,6 +406,46 @@ export const EventEnvelopeSchema = z.object({
     traceId: z.string().min(1),
     spanId: z.string().min(1)
   })
+});
+
+export const ContractAddressesSchema = z.object({
+  AgentProfile: z.string().regex(/^0x[a-fA-F0-9]{40}$/).nullable(),
+  Escrow: z.string().regex(/^0x[a-fA-F0-9]{40}$/).nullable(),
+  TicketNFT: z.string().regex(/^0x[a-fA-F0-9]{40}$/).nullable()
+});
+
+export const ContractTxRecordSchema = z.object({
+  type: z.string().min(1),
+  hash: z.string().min(1),
+  contractName: z.string().min(1),
+  contractAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  createdAt: z.number().int().positive(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+});
+
+export const ContractStatusSchema = z.object({
+  chainId: z.number().int().positive(),
+  rpcUrl: z.string().min(1),
+  healthy: z.boolean(),
+  mode: z.enum(["localnet", "simulated"]),
+  addresses: ContractAddressesSchema,
+  latestTx: ContractTxRecordSchema.nullable(),
+  txs: z.array(ContractTxRecordSchema),
+  error: z.string().min(1).nullable().default(null)
+});
+
+export const RegisterAgentOnchainRequestSchema = z.object({
+  agentId: z.string().min(1),
+  did: z.string().min(1),
+  wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  agentCard: z.record(z.string(), z.unknown())
+});
+
+export const ConciergeChatRequestSchema = z.object({
+  message: z.string().min(1),
+  workflowId: z.string().min(1).optional(),
+  agentId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional()
 });
 
 export const A2AMessageTypeSchema = z.enum([
@@ -438,9 +490,13 @@ export type MatchingResult = z.infer<typeof MatchingResultSchema>;
 export type MatchCandidate = z.infer<typeof MatchCandidateSchema>;
 export type AgentSession = z.infer<typeof AgentSessionSchema>;
 export type AgentToolCall = z.infer<typeof AgentToolCallSchema>;
+export type RuntimeSessionListRequest = z.infer<typeof RuntimeSessionListRequestSchema>;
 export type ProposalTerms = z.infer<typeof ProposalTermsSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 export type Negotiation = z.infer<typeof NegotiationSchema>;
 export type Deal = z.infer<typeof DealSchema>;
 export type EscrowRecord = z.infer<typeof EscrowRecordSchema>;
 export type TicketRecord = z.infer<typeof TicketRecordSchema>;
+export type ContractStatus = z.infer<typeof ContractStatusSchema>;
+export type ContractTxRecord = z.infer<typeof ContractTxRecordSchema>;
+export type ConciergeChatRequest = z.infer<typeof ConciergeChatRequestSchema>;

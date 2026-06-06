@@ -11,7 +11,9 @@ const STREAMS = [
   "matching.events",
   "negotiation.events",
   "settlement.events",
-  "show.events"
+  "show.events",
+  "contract.events",
+  "concierge.events"
 ];
 
 export async function GET() {
