@@ -134,6 +134,155 @@ export const WishCreateResponseSchema = z.object({
   matching: MatchingResultSchema.nullable()
 });
 
+export const ShowScheduleSchema = z.object({
+  date: z.string().min(1),
+  startTime: z.string().min(1),
+  endTime: z.string().min(1)
+});
+
+export const ProposalTermsSchema = z.object({
+  venueFee: z.number().nonnegative(),
+  splitPercentage: z.number().min(0).max(100),
+  schedule: ShowScheduleSchema
+});
+
+export const ProposalTypeSchema = z.enum(["INITIAL", "COUNTER"]);
+export const ProposalDecisionSchema = z.enum(["PENDING", "ACCEPTED", "REJECTED"]);
+
+export const ProposalSchema = z.object({
+  proposalId: z.string().min(1),
+  negotiationId: z.string().min(1),
+  senderAgentId: z.string().min(1),
+  receiverAgentId: z.string().min(1),
+  type: ProposalTypeSchema,
+  terms: ProposalTermsSchema,
+  decision: ProposalDecisionSchema,
+  payload: z.record(z.string(), z.unknown()).default({}),
+  createdAt: z.number().int().positive()
+});
+
+export const NegotiationStatusSchema = z.enum([
+  "PENDING",
+  "ACTIVE",
+  "ACCEPTED",
+  "REJECTED",
+  "TIMEOUT",
+  "DEAL_CREATED"
+]);
+
+export const DealStatusSchema = z.enum([
+  "PENDING_CONFIRMATION",
+  "CONFIRMED",
+  "REJECTED",
+  "SETTLED",
+  "FAILED"
+]);
+
+export const DealSchema = z.object({
+  dealId: z.string().min(1),
+  negotiationId: z.string().min(1),
+  proposalId: z.string().min(1),
+  demandId: z.string().min(1),
+  musicianAgentId: z.string().min(1),
+  venueAgentId: z.string().min(1),
+  terms: ProposalTermsSchema,
+  status: DealStatusSchema,
+  escrowId: z.string().min(1).nullable(),
+  ticketId: z.string().min(1).nullable(),
+  createdAt: z.number().int().positive(),
+  confirmedAt: z.number().int().positive().nullable()
+});
+
+export const NegotiationSchema = z.object({
+  negotiationId: z.string().min(1),
+  demandId: z.string().min(1),
+  musicianId: z.string().min(1),
+  venueId: z.string().min(1),
+  workflowId: z.string().min(1),
+  conversationId: z.string().min(1),
+  status: NegotiationStatusSchema,
+  proposals: z.array(ProposalSchema),
+  deal: DealSchema.nullable(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive()
+});
+
+export const CreateNegotiationRequestSchema = z.object({
+  demandId: z.string().min(1),
+  musicianId: z.string().min(1),
+  venueId: z.string().min(1)
+});
+
+export const SendProposalRequestSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  terms: ProposalTermsSchema
+});
+
+export const CounterProposalRequestSchema = z.object({
+  proposalId: z.string().min(1),
+  from: z.string().min(1),
+  newTerms: ProposalTermsSchema
+});
+
+export const AcceptProposalRequestSchema = z.object({
+  proposalId: z.string().min(1),
+  from: z.string().min(1)
+});
+
+export const RejectProposalRequestSchema = z.object({
+  proposalId: z.string().min(1),
+  from: z.string().min(1),
+  reason: z.string().min(1).optional()
+});
+
+export const EscrowStatusSchema = z.enum(["PENDING", "RELEASED", "REFUNDED"]);
+
+export const EscrowRecordSchema = z.object({
+  escrowId: z.string().min(1),
+  dealId: z.string().min(1),
+  payees: z.array(z.string().regex(/^0x[a-fA-F0-9]{40}$/)),
+  shares: z.array(z.number().int().positive()),
+  balance: z.number().nonnegative(),
+  status: EscrowStatusSchema,
+  txHash: z.string().min(1),
+  createdAt: z.number().int().positive(),
+  releasedAt: z.number().int().positive().nullable()
+});
+
+export const TicketRecordSchema = z.object({
+  tokenId: z.string().min(1),
+  dealId: z.string().min(1),
+  ownerWallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  metadataUri: z.string().min(1),
+  txHash: z.string().min(1),
+  createdAt: z.number().int().positive()
+});
+
+export const CreateEscrowRequestSchema = z.object({
+  dealId: z.string().min(1),
+  payees: z.array(z.string().regex(/^0x[a-fA-F0-9]{40}$/)).min(1),
+  shares: z.array(z.number().int().positive()).min(1)
+});
+
+export const ReleaseEscrowRequestSchema = z.object({
+  escrowId: z.string().min(1),
+  signature: z.string().min(1)
+});
+
+export const MintTicketRequestSchema = z.object({
+  dealId: z.string().min(1),
+  to: z.string().regex(/^0x[a-fA-F0-9]{40}$/)
+});
+
+export const ConfirmDealRequestSchema = z.object({
+  signature: z.string().min(1).default("local-human-confirmation")
+});
+
+export const RejectDealRequestSchema = z.object({
+  reason: z.string().min(1).optional()
+});
+
 export const EventEnvelopeSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
@@ -182,3 +331,9 @@ export type WishCreateRequest = z.infer<typeof WishCreateRequestSchema>;
 export type Demand = z.infer<typeof DemandSchema>;
 export type MatchingResult = z.infer<typeof MatchingResultSchema>;
 export type MatchCandidate = z.infer<typeof MatchCandidateSchema>;
+export type ProposalTerms = z.infer<typeof ProposalTermsSchema>;
+export type Proposal = z.infer<typeof ProposalSchema>;
+export type Negotiation = z.infer<typeof NegotiationSchema>;
+export type Deal = z.infer<typeof DealSchema>;
+export type EscrowRecord = z.infer<typeof EscrowRecordSchema>;
+export type TicketRecord = z.infer<typeof TicketRecordSchema>;

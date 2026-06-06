@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "scripts": {
     "build": "hardhat compile",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
     "lint": "hardhat compile",
     "test": "hardhat test",
     "typecheck": "hardhat compile"
   },
   "devDependencies": {
-    "hardhat": "2.22.19"
+    "hardhat": "2.22.19",
+    "viem": "2.39.3"
   }
 }
