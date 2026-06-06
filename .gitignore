@@ -4,6 +4,7 @@ node_modules/
 dist/
 coverage/
 cache/
+artifacts/
 *.tsbuildinfo
 .env
 .env.local

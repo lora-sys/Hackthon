@@ -179,7 +179,7 @@ Test gate:
 - confirmation creates escrow and mints ticket
 - Hardhat tests pass
 
-Status: `TODO`.
+Status: `REVIEW`.
 
 ## Phase 8 - Concierge, Observability, Demo
 

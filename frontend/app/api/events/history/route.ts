@@ -3,6 +3,7 @@ import { errorResponse, json } from "../../_lib/respond";
 
 const STREAMS = [
   "agent.lifecycle",
+  "agent.task",
   "wish.events",
   "demand.events",
   "matching.events",

@@ -22,9 +22,9 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `REVIEW`, `DONE`.
 | P6-01 | Wish | Implement Wish Pool and wish APIs | REVIEW | P5 | API and browser flow pass | `/api/wishes`, `/wish-pool`, Browser screenshot `/tmp/wishlive-phase6-wish-pool.png` |
 | P6-02 | Demand | Implement Demand Pool threshold aggregation | REVIEW | P6-01 | 10 wishes create 1 demand | Browser shows `10/10 wishes`; `/api/wishes/demands` returns 1 `MATCHED` demand; Redis `demand.events` XLEN=2 |
 | P6-03 | Matching | Implement Top 3 matching formula | REVIEW | P6-02 | formula unit tests pass | Browser shows musician Top 3 + venue Top 3; API returns 3/3 candidates; Redis `matching.events` XLEN=2; formula unit test passed |
-| P7-01 | Negotiation | Implement A2A proposal/counter/accept/reject | TODO | P6 | Redis event chain visible | Pending |
-| P7-02 | Settlement | Implement ShowConfirm and settlement service | TODO | P7-01 | release blocked before confirmation | Pending |
-| P7-03 | Contracts | Implement AgentProfile, Escrow, TicketNFT | TODO | P7-02 | Hardhat tests pass | Pending |
+| P7-01 | Negotiation | Implement A2A proposal/counter/accept/reject | REVIEW | P6 | Redis event chain visible | Backend test emits `a2a.proposal`, `a2a.counter_proposal`, `a2a.accept`, `deal.created`; Browser `/negotiation/demo` shows proposal/counter timeline; Redis `agent.task=3`, `negotiation.events=5` |
+| P7-02 | Settlement | Implement ShowConfirm and settlement service | REVIEW | P7-01 | release blocked before confirmation | Backend test rejects unconfirmed escrow, then confirm emits `show.confirmed`, `escrow.created`, `ticket.minted`; Browser shows `SETTLED`, escrow id, ticket id; Redis `show.events=1`, `settlement.events=2` |
+| P7-03 | Contracts | Implement AgentProfile, Escrow, TicketNFT | REVIEW | P7-02 | Hardhat tests pass | `hardhat test` reports 6 passing; `deploy:local` deployed AgentProfile, Escrow, TicketNFT on chain 31337 |
 | P8-01 | Concierge | Implement global Concierge assistant | TODO | P7 | answers workflow status | Pending |
 | P8-02 | Observability | Integrate AI SDK telemetry and Langfuse | TODO | P8-01 | trace searchable by workflow_id | Pending |
 | P8-03 | Demo | Validate 5-minute end-to-end demo | TODO | P8-02 | browser E2E passes | Pending |

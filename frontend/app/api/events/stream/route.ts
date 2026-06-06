@@ -3,6 +3,7 @@ import { RedisEventBus } from "@wishlive/backend";
 
 const STREAMS = [
   "agent.lifecycle",
+  "agent.task",
   "wish.events",
   "demand.events",
   "matching.events",

@@ -1,4 +1,9 @@
-import { RegistryError, WishWorkflowError } from "@wishlive/backend";
+import {
+  NegotiationError,
+  RegistryError,
+  SettlementError,
+  WishWorkflowError
+} from "@wishlive/backend";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -12,6 +17,14 @@ export function errorResponse(error: unknown) {
   }
 
   if (error instanceof WishWorkflowError) {
+    return json({ error: error.message }, error.statusCode);
+  }
+
+  if (error instanceof NegotiationError) {
+    return json({ error: error.message }, error.statusCode);
+  }
+
+  if (error instanceof SettlementError) {
     return json({ error: error.message }, error.statusCode);
   }
 
