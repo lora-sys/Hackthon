@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatStreamEvent, type DashboardEvent, type StreamEventPayload } from "../../lib/dashboard-data";
 
 export default function MyAgentPage() {
-  const [agentId, setAgentId] = useState("agent:musician:001");
+  const [agentId, setAgentId] = useState("agent:audience:001");
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [events, setEvents] = useState<DashboardEvent[]>([]);
 
@@ -39,7 +39,7 @@ export default function MyAgentPage() {
   }
 
   const agent = useMemo(
-    () => agents.find((entry) => entry.agent_id === agentId) ?? agents.find((entry) => entry.type === "musician"),
+    () => agents.find((entry) => entry.agent_id === agentId) ?? agents.find((entry) => entry.type === "audience"),
     [agentId, agents]
   );
 
@@ -92,15 +92,16 @@ export default function MyAgentPage() {
           </section>
 
           <section className="grid gap-5">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Metric label="Reputation" value={String(agent?.reputation ?? 0)} />
               <Metric label="Tool Calls" value={String(events.filter((event) => event.type === "agent.tool_call").length)} />
               <Metric label="A2A Inbox" value={String(events.filter((event) => event.stream === "agent.task").length)} />
+              <Metric label="Deals/Tickets" value={String(events.filter((event) => event.type.includes("deal") || event.type.includes("ticket")).length)} />
             </div>
 
             <section className="rounded-lg border border-[#ddb7ff]/20 bg-[#11131b] p-5">
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
-                Recent Agent Events
+                A2A Inbox + Runtime Events
               </h2>
               <div className="mt-4 grid max-h-[560px] gap-2 overflow-auto">
                 {events.map((event) => (

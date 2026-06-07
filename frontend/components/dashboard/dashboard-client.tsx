@@ -15,6 +15,18 @@ type OnlineCount = {
   byType: Record<string, number>;
 };
 
+type ContractStatus = {
+  chainId: number;
+  health: string;
+  mode: string;
+  counts: {
+    deals: number;
+    escrows: number;
+    tickets: number;
+    tx: number;
+  };
+};
+
 export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }) {
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [online, setOnline] = useState<OnlineCount>({
@@ -22,24 +34,28 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
     byType: {}
   });
   const [sseEvents, setSseEvents] = useState<DashboardEvent[]>([]);
+  const [contracts, setContracts] = useState<ContractStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const [agentsResponse, onlineResponse, historyResponse] = await Promise.all([
+      const [agentsResponse, onlineResponse, historyResponse, contractsResponse] = await Promise.all([
         fetch("/api/agents", { cache: "no-store" }),
         fetch("/api/agents/online", { cache: "no-store" }),
-        fetch("/api/events/history", { cache: "no-store" })
+        fetch("/api/events/history", { cache: "no-store" }),
+        fetch("/api/contracts/status", { cache: "no-store" })
       ]);
       const nextAgents = (await agentsResponse.json()) as AgentCard[];
       const nextOnline = (await onlineResponse.json()) as OnlineCount;
       const history = (await historyResponse.json()) as StreamEventPayload[];
+      const nextContracts = (await contractsResponse.json()) as ContractStatus;
 
       if (!cancelled) {
         setAgents(nextAgents);
         setOnline(nextOnline);
         setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 80));
+        setContracts(nextContracts);
       }
     }
 
@@ -69,7 +85,11 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   const events = useMemo(() => {
     return sseEvents.slice(0, 80);
   }, [sseEvents]);
-  const metrics = metricCards(online.count);
+  const metrics = metricCards(online.count, {
+    activeTasks: events.filter((event) => event.stream === "agent.runtime" || event.stream === "agent.task").length,
+    negotiations: events.filter((event) => event.stream === "negotiation.events").length,
+    onChainTx: contracts?.counts.tx ?? events.filter((event) => event.type.startsWith("contract.")).length
+  });
 
   return (
     <main className="min-h-screen bg-[#07080d] px-5 py-5 text-white lg:px-8">
@@ -127,7 +147,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
         {!fullScreen && (
           <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
             <EventStream events={events} />
-            <BlockchainStatus />
+            <BlockchainStatus contracts={contracts} />
           </div>
         )}
       </section>
@@ -207,19 +227,22 @@ function NegotiationPanel({ events }: { events: DashboardEvent[] }) {
   );
 }
 
-function BlockchainStatus() {
+function BlockchainStatus({ contracts }: { contracts: ContractStatus | null }) {
+  const network = contracts?.chainId === 11155111 ? "Sepolia" : "Hardhat";
+  const rows = [
+    ["AgentProfile", `${57} cards anchored`],
+    ["Escrow", `${contracts?.counts.escrows ?? 0} pools`],
+    ["TicketNFT", `${contracts?.counts.tickets ?? 0} minted`],
+    [network, `Chain ${contracts?.chainId ?? 31337} ${contracts?.health ?? "unknown"}`]
+  ];
+
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
         Blockchain Status
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        {[
-          ["AgentProfile", "57 cards anchored"],
-          ["Escrow", "15 pools ready"],
-          ["TicketNFT", "128 minted"],
-          ["Hardhat", "Chain 31337 healthy"]
-        ].map(([label, value]) => (
+        {rows.map(([label, value]) => (
           <div className="rounded-lg border border-white/10 bg-[#11131b] p-4" key={label}>
             <p className="font-mono text-xs uppercase text-white/45">{label}</p>
             <p className="mt-2 text-lg font-bold text-white">{value}</p>

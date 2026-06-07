@@ -119,12 +119,19 @@ export function formatStreamEvent(payload: StreamEventPayload): DashboardEvent {
   };
 }
 
-export function metricCards(onlineCount: number) {
+export function metricCards(
+  onlineCount: number,
+  input: {
+    activeTasks?: number;
+    negotiations?: number;
+    onChainTx?: number;
+  } = {}
+) {
   return [
     { label: "Online Agents", value: String(onlineCount), tone: "text-emerald-300" },
-    { label: "Active Tasks", value: "128", tone: "text-sky-300" },
-    { label: "Negotiations", value: "23", tone: "text-orange-300" },
-    { label: "On-chain Tx", value: "15,687", tone: "text-[#ddb7ff]" }
+    { label: "Active Tasks", value: String(input.activeTasks ?? 0), tone: "text-sky-300" },
+    { label: "Negotiations", value: String(input.negotiations ?? 0), tone: "text-orange-300" },
+    { label: "On-chain Tx", value: String(input.onChainTx ?? 0), tone: "text-[#ddb7ff]" }
   ] as const;
 }
 

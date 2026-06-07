@@ -64,6 +64,13 @@ export class SettlementService {
       shares: escrow.shares,
       agentSkill: "create_escrow"
     });
+    await this.publish("contract.escrow.created", "agent:business:007", {
+      escrowId: escrow.escrowId,
+      dealId: escrow.dealId,
+      txHash: escrow.txHash,
+      chainId: 31337,
+      agentSkill: "create_escrow"
+    });
 
     return escrow;
   }
@@ -81,8 +88,16 @@ export class SettlementService {
     escrow.status = "RELEASED";
     escrow.releasedAt = Date.now();
     this.escrows.set(escrow.escrowId, escrow);
+    const txHash = localTxHash("release", escrow.escrowId);
+    await this.publish("contract.escrow.released", "agent:business:007", {
+      escrowId: escrow.escrowId,
+      dealId: escrow.dealId,
+      txHash,
+      chainId: 31337,
+      agentSkill: "release_funds"
+    });
     return {
-      txHash: localTxHash("release", escrow.escrowId),
+      txHash,
       escrow
     };
   }
@@ -110,6 +125,14 @@ export class SettlementService {
       ownerWallet: ticket.ownerWallet,
       metadataUri: ticket.metadataUri,
       txHash: ticket.txHash,
+      agentSkill: "mint_ticket"
+    });
+    await this.publish("contract.ticket.minted", "agent:business:007", {
+      tokenId: ticket.tokenId,
+      dealId: ticket.dealId,
+      ownerWallet: ticket.ownerWallet,
+      txHash: ticket.txHash,
+      chainId: 31337,
       agentSkill: "mint_ticket"
     });
 

@@ -5,6 +5,7 @@
   "scripts": {
     "build": "hardhat compile",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
     "lint": "hardhat compile",
     "test": "hardhat test",
     "typecheck": "hardhat compile"

@@ -1,16 +1,22 @@
 const hre = require("hardhat");
 const { createPublicClient, createWalletClient, custom, getContract } = require("viem");
-const { hardhat } = require("viem/chains");
+const { hardhat, sepolia } = require("viem/chains");
 
 async function main() {
   const [deployer] = await hre.network.provider.send("eth_accounts");
+  if (!deployer) {
+    throw new Error(
+      `No deployer account for ${hre.network.name}. Set DEPLOYER_PRIVATE_KEY and SEPOLIA_RPC_URL in .env for Sepolia.`
+    );
+  }
+  const chain = hre.network.name === "sepolia" ? sepolia : hardhat;
   const walletClient = createWalletClient({
     account: deployer,
-    chain: hardhat,
+    chain,
     transport: custom(hre.network.provider)
   });
   const publicClient = createPublicClient({
-    chain: hardhat,
+    chain,
     transport: custom(hre.network.provider)
   });
 
@@ -24,9 +30,16 @@ async function main() {
     JSON.stringify(
       {
         network: hre.network.name,
-        chainId: 31337,
+        chainId: chain.id,
         deployer,
-        contracts
+        contracts,
+        env: {
+          NEXT_PUBLIC_CHAIN_ID: String(chain.id),
+          NEXT_PUBLIC_RPC_URL: hre.network.name === "sepolia" ? "${SEPOLIA_RPC_URL}" : "${HARDHAT_RPC_URL}",
+          AGENT_PROFILE_ADDRESS: contracts.AgentProfile,
+          ESCROW_ADDRESS: contracts.Escrow,
+          TICKET_NFT_ADDRESS: contracts.TicketNFT
+        }
       },
       null,
       2
@@ -40,6 +53,7 @@ async function deploy(name, walletClient, publicClient) {
     data: artifact.bytecode
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  console.error(`${name} deployed: ${receipt.contractAddress} (${hash})`);
   return getContract({
     address: receipt.contractAddress,
     abi: artifact.abi,

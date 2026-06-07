@@ -59,7 +59,8 @@ export class WishWorkflowService {
     return {
       wishId: wish.wishId,
       demand,
-      matching: demand?.matching ?? null
+      matching: demand?.matching ?? null,
+      nextRoute: demand ? `/demand-pool/${encodeURIComponent(demand.demandId)}` : "/wish-pool"
     };
   }
 
@@ -72,6 +73,22 @@ export class WishWorkflowService {
 
   listDemands() {
     return [...this.demands.values()].sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  getDemand(demandId: string) {
+    if (demandId === "latest") {
+      const latest = this.listDemands()[0];
+      if (!latest) {
+        throw new WishWorkflowError(404, "No demand pool has been created yet");
+      }
+      return latest;
+    }
+
+    const demand = this.demands.get(demandId);
+    if (!demand) {
+      throw new WishWorkflowError(404, `Demand not found: ${demandId}`);
+    }
+    return demand;
   }
 
   async withdrawWish(wishId: string) {

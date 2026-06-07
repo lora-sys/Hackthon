@@ -206,6 +206,25 @@ export class NegotiationService {
       status: deal.status,
       agentSkill: "create_deal"
     });
+    await this.publishShow("show.confirmation_requested", "agent:business:008", {
+      dealId: deal.dealId,
+      negotiationId: negotiation.negotiationId,
+      audienceAgentId: "agent:audience:001",
+      targetAgentId: "agent:audience:001",
+      musicianAgentId: deal.musicianAgentId,
+      venueAgentId: deal.venueAgentId,
+      agentSkill: "notify_user"
+    });
+    await this.publishA2A(negotiation, {
+      sender: "agent:business:008",
+      receiver: "agent:audience:001",
+      type: "NOTIFICATION",
+      payload: {
+        dealId: deal.dealId,
+        negotiationId: negotiation.negotiationId,
+        message: "ShowConfirm Agent is waiting for human confirmation."
+      }
+    });
 
     return { status: negotiation.status, deal };
   }
