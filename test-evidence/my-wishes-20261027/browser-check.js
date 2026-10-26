@@ -1,0 +1,30 @@
+async page => {
+  await page.goto('http://localhost:3000/my-wishes');
+  await page.getByRole('heading', { name: '还没有属于你的许愿' }).waitFor();
+  await page.screenshot({ path: 'test-evidence/my-wishes-20261027/empty-real.png', fullPage: true });
+  const owner = await page.evaluate(() => localStorage.getItem('wishlive.guest-id'));
+  const wishes = [{ wishId: 'fixture-wish', userId: owner, artistName: 'UI TEST · 测试乐队', city: 'shanghai', genre: 'rock', preferredDate: '2026-12-27', depositAmount: 80, status: 'ACTIVE', createdAt: 1 }, { wishId: 'other-owner', userId: 'guest:someone-else', artistName: 'SHOULD NOT BE VISIBLE', city: 'beijing', genre: 'jazz', preferredDate: '2026-12-28', depositAmount: 20, status: 'ACTIVE', createdAt: 2 }];
+  await page.route('**/api/wishes', route => route.fulfill({ json: wishes }));
+  await page.route('**/api/wishes/demands', route => route.fulfill({ json: [] }));
+  await page.reload();
+  await page.getByRole('heading', { name: 'UI TEST · 测试乐队' }).waitFor();
+  if (await page.getByText('SHOULD NOT BE VISIBLE').count()) throw new Error('Owner filter failed');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: 'test-evidence/my-wishes-20261027/records-fixture-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const width = await page.evaluate(() => ({ viewport: innerWidth, content: document.documentElement.scrollWidth }));
+  if (width.viewport !== width.content) throw new Error('Horizontal overflow');
+  await page.screenshot({ path: 'test-evidence/my-wishes-20261027/records-fixture-mobile.png', fullPage: true });
+  await page.getByRole('link', { name: '复制条件创建新许愿' }).click();
+  await page.getByText('已复制原条件。提交会新增许愿，不会修改或退出原需求池。').waitFor();
+  if (await page.getByRole('textbox', { name: '艺人', exact: true }).inputValue() !== wishes[0].artistName) throw new Error('Prefill failed');
+  if (await page.getByRole('spinbutton', { name: '预算', exact: true }).inputValue() !== '80') throw new Error('Budget prefill failed');
+  await page.getByRole('link', { name: '查看我的许愿' }).click();
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await page.getByRole('heading', { name: 'My wishes', exact: true }).waitFor();
+  await page.screenshot({ path: 'test-evidence/my-wishes-20261027/records-fixture-english.png', fullPage: true });
+  await page.unroute('**/api/wishes');
+  await page.unroute('**/api/wishes/demands');
+  await page.reload();
+  return { testMode: 'UI fixtures only, not backend E2E', ownerFilter: true, reload: true, prefill: true, language: true, width };
+}

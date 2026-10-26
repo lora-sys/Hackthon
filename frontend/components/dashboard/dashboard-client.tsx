@@ -3,6 +3,7 @@
 import type { AgentCard } from "@wishlive/shared";
 import { useEffect, useMemo, useState } from "react";
 import { AgentTopology } from "./agent-topology";
+import { useLanguage } from "../language-provider";
 import {
   formatStreamEvent,
   metricCards,
@@ -28,6 +29,9 @@ type ContractStatus = {
 };
 
 export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }) {
+  const { t } = useLanguage();
+  const [loadError, setLoadError] = useState(false);
+  const [streamConnected, setStreamConnected] = useState(false);
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [online, setOnline] = useState<OnlineCount>({
     count: 0,
@@ -40,22 +44,28 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
     let cancelled = false;
 
     async function load() {
+      try {
       const [agentsResponse, onlineResponse, historyResponse, contractsResponse] = await Promise.all([
-        fetch("/api/agents", { cache: "no-store" }),
-        fetch("/api/agents/online", { cache: "no-store" }),
-        fetch("/api/events/history", { cache: "no-store" }),
-        fetch("/api/contracts/status", { cache: "no-store" })
+        fetch("/api/agents", { cache: "no-store", signal: AbortSignal.timeout(4000) }),
+        fetch("/api/agents/online", { cache: "no-store", signal: AbortSignal.timeout(4000) }),
+        fetch("/api/events/history", { cache: "no-store", signal: AbortSignal.timeout(4000) }),
+        fetch("/api/contracts/status", { cache: "no-store", signal: AbortSignal.timeout(4000) })
       ]);
+      if (![agentsResponse, onlineResponse, historyResponse, contractsResponse].every((response) => response.ok)) throw new Error("Dependencies unavailable");
       const nextAgents = (await agentsResponse.json()) as AgentCard[];
       const nextOnline = (await onlineResponse.json()) as OnlineCount;
       const history = (await historyResponse.json()) as StreamEventPayload[];
       const nextContracts = (await contractsResponse.json()) as ContractStatus;
 
       if (!cancelled) {
+        setLoadError(false);
         setAgents(nextAgents);
         setOnline(nextOnline);
         setSseEvents(uniqueEvents(history.map(formatStreamEvent)).slice(0, 80));
         setContracts(nextContracts);
+      }
+      } catch {
+        if (!cancelled) setLoadError(true);
       }
     }
 
@@ -72,6 +82,8 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
 
   useEffect(() => {
     const source = new EventSource("/api/events/stream");
+    source.onopen = () => setStreamConnected(true);
+    source.onerror = () => setStreamConnected(false);
     source.onmessage = (message) => {
       const event = formatStreamEvent(JSON.parse(message.data) as StreamEventPayload);
       setSseEvents((current) => uniqueEvents([event, ...current]).slice(0, 80));
@@ -92,7 +104,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
   });
 
   return (
-    <main className="min-h-screen bg-[#07080d] px-5 py-5 text-white lg:px-8">
+    <main className="wl-dashboard min-h-screen bg-[#07080d] px-5 py-5 text-white lg:px-8">
       <section className="mx-auto grid max-w-[1600px] gap-5">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -100,11 +112,15 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
               WishLive Live Dashboard
             </p>
             <h1 className="mt-2 text-3xl font-black text-white sm:text-5xl">
-              A2A Agent Mission Control
+              {t("智能体协作控制台", "A2A Agent Mission Control")}
             </h1>
           </div>
-          <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 font-mono text-sm text-emerald-200">
-            System healthy · SSE event latency &lt; 2s
+          <div role="status" className="rounded-lg border border-white/25 px-4 py-2 font-mono text-sm text-amber-200">
+            {loadError ? t("服务异常 · 数据暂不可用", "Service unavailable · data may be stale")
+              : !contracts ? t("正在检查服务…", "Checking services...")
+              : contracts.health !== "healthy" || !streamConnected
+                ? t("部分服务未连接", "Some services are disconnected")
+                : t("服务已连接 · 延迟未测量", "Services connected · latency not measured")}
           </div>
         </header>
 
@@ -115,7 +131,7 @@ export function DashboardClient({ fullScreen = false }: { fullScreen?: boolean }
                 Agent Topology
               </h2>
               <span className="font-mono text-xs text-[#ddb7ff]">
-                {agents.length || 57}+ nodes
+                {agents.length} {t("个节点", "nodes")}
               </span>
             </div>
             <AgentTopology agents={agents} />
@@ -165,7 +181,7 @@ function EventStream({
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-white/65">
         Redis Event Stream
       </h2>
-      <div className="max-h-[330px] overflow-hidden rounded-lg border border-white/10">
+      <div className="max-h-[330px] overflow-auto rounded-lg border border-white/10">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-white/[0.06] font-mono text-xs uppercase text-white/45">
             <tr>
@@ -230,7 +246,7 @@ function NegotiationPanel({ events }: { events: DashboardEvent[] }) {
 function BlockchainStatus({ contracts }: { contracts: ContractStatus | null }) {
   const network = contracts?.chainId === 11155111 ? "Sepolia" : "Hardhat";
   const rows = [
-    ["AgentProfile", `${57} cards anchored`],
+    ["AgentProfile", "Not verified / 未验证"],
     ["Escrow", `${contracts?.counts.escrows ?? 0} pools`],
     ["TicketNFT", `${contracts?.counts.tickets ?? 0} minted`],
     [network, `Chain ${contracts?.chainId ?? 31337} ${contracts?.health ?? "unknown"}`]

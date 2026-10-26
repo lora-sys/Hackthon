@@ -12,6 +12,9 @@ export function json(data: unknown, status = 200) {
 }
 
 export function errorResponse(error: unknown) {
+  if (error instanceof Error && error.message === "EVENT_BUS_UNAVAILABLE") {
+    return json({ error: "Event service unavailable. Please retry later.", code: "EVENT_BUS_UNAVAILABLE" }, 503);
+  }
   if (error instanceof RegistryError) {
     return json({ error: error.message }, error.statusCode);
   }

@@ -3,21 +3,24 @@
 import type { AgentCard, Deal, Demand, Negotiation } from "@wishlive/shared";
 import { useEffect, useState } from "react";
 import { DemoImage, WishLiveShell } from "../demo/wishlive-shell";
+import Link from "next/link";
+import { useLanguage } from "../language-provider";
+import { matchingReadiness } from "../../lib/matching-readiness";
 
 type DemandPayload = {
   demand: Demand;
   musicianCards: AgentCard[];
   venueCards: AgentCard[];
   analysis: {
-    demandScore: number;
-    probability: number;
+    demandScore: number | null;
+    probability: number | null;
     completed: string[];
   };
 };
 
 export function DemandPoolClient({ demandId }: { demandId: string }) {
+  const { t } = useLanguage();
   const [payload, setPayload] = useState<DemandPayload | null>(null);
-  const [status, setStatus] = useState("Loading demand pool.");
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -34,19 +37,17 @@ export function DemandPoolClient({ demandId }: { demandId: string }) {
         throw new Error(body.error ?? "Demand not found");
       }
       setPayload((await response.json()) as DemandPayload);
-      setStatus("Matching Agent found candidates through manager discovery.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Demand loading failed");
     }
   }
 
   async function startNegotiation() {
-    if (!payload?.demand.matching) {
+    if (!payload || !matchingReadiness(payload.demand.matching).ready) {
       return;
     }
     setRunning(true);
     setError(null);
-    setStatus("Negotiation Agent is opening A2A room.");
     try {
       const negotiationId = await startAgentNegotiation(payload.demand);
       window.location.href = `/negotiation/${encodeURIComponent(negotiationId)}`;
@@ -58,62 +59,62 @@ export function DemandPoolClient({ demandId }: { demandId: string }) {
   }
 
   const demand = payload?.demand;
+  const readiness = matchingReadiness(demand?.matching);
 
   return (
     <WishLiveShell active="Matches" online={57} section="Market">
       <div className="grid gap-9">
         <header>
-          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">Demand Pool</h1>
+          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">{t("需求池", "Demand Pool")}</h1>
           <p className="mt-4 text-2xl font-bold text-white/48">
-            Aggregated audience wishes become bookable demand.
+            {t("汇集观众期待，寻找合适的乐手与场地。", "Gather audience wishes and find available musicians and venues.")}
           </p>
         </header>
 
         <div className="grid gap-12 xl:grid-cols-[0.9fr_1fr]">
           <DemoImage
             alt="Demand pool guitarist"
-            caption="Demand Pool photo"
+            caption={t("演出氛围示意", "Illustrative live music photo")}
             className="min-h-[520px]"
             src="/image/Demand Pool.webp"
           />
 
           <section className="wl-card p-12">
             <h2 className="text-5xl font-black">
-              {demand ? `${titleCase(demand.genre)} in ${titleCase(demand.city)}` : "Loading Demand"}
+              {demand ? `${titleCase(demand.genre)} · ${titleCase(demand.city)}` : t("正在加载需求", "Loading demand")}
             </h2>
             <p className="mt-6 text-3xl font-black text-[#d49aff]">
-              {demand?.wishCount ?? 0} wishes joined
+              {demand?.wishCount ?? 0} {t("条许愿已加入", "wishes joined")}
             </p>
-            <p className="mt-8 text-xl font-bold text-white/50">Demand Score</p>
-            <p className="mt-5 text-8xl font-black text-[#45f5a5]">{payload?.analysis.demandScore ?? "--"}</p>
+            <p className="mt-8 text-xl font-bold text-white/70">{t("可用候选", "Available candidates")}</p>
+            <p className="mt-5 text-2xl font-bold">{t("乐手", "Musicians")} {readiness.musicians} · {t("场地", "Venues")} {readiness.venues}</p>
             <p className="mt-8 text-base font-bold text-white/45">
-              {status}
+              {running ? t("正在创建协商…", "Opening negotiation…") : !payload ? t("正在加载…", "Loading…") : readiness.ready ? t("已找到候选，可进入协商。", "Candidates found. Ready to negotiate.") : t("当前日期暂无完整候选组合，请调整日期或城市。", "No complete match for this date. Try another date or city.")}
             </p>
             {error && <p className="mt-4 text-sm font-bold text-red-200">{error}</p>}
             <button
               className="wl-primary mt-10"
-              disabled={running || !demand?.matching}
+              disabled={running || !readiness.ready}
               onClick={() => void startNegotiation()}
               type="button"
             >
-              {running ? "Opening A2A Room..." : "Enter A2A Negotiation"}
+              {running ? t("正在创建协商…", "Opening negotiation…") : t("进入协商", "Enter A2A Negotiation")}
             </button>
+            {!readiness.ready && payload && <Link className="wl-pill mt-4" href="/wish-pool">{t("调整许愿条件", "Change wish preferences")}</Link>}
           </section>
         </div>
 
         <section className="wl-card max-w-5xl p-12">
-          <h2 className="text-4xl font-black">Agent Analysis</h2>
+          <h2 className="text-4xl font-black">{t("撮合进度", "Matching progress")}</h2>
           <div className="mt-9 grid gap-7 text-2xl font-bold text-white/54">
-            {(payload?.analysis.completed ?? ["Audience clustering pending"]).map((entry) => (
-              <p key={entry}>{entry}</p>
-            ))}
-            <p className="text-[#45f5a5]">Probability of show: {payload?.analysis.probability ?? 0}%</p>
+            <p>{t("需求已汇集", "Demand collected")}: {demand?.wishCount ?? 0}/{demand?.threshold ?? 10}</p>
+            <p>{readiness.ready ? t("候选已找到，尚未确认演出", "Candidates found; show not confirmed") : t("等待合适档期，暂无成功概率预测", "Awaiting availability; no probability estimate")}</p>
           </div>
         </section>
 
         <div className="grid gap-8 xl:grid-cols-2">
-          <CandidateList title="Top 3 Musician Agents" candidates={demand?.matching?.musicians ?? []} cards={payload?.musicianCards ?? []} />
-          <CandidateList title="Top 3 Venue Agents" candidates={demand?.matching?.venues ?? []} cards={payload?.venueCards ?? []} />
+          <CandidateList title={t("乐手候选（最多 3 位）", "Musician candidates (up to 3)")} candidates={demand?.matching?.musicians ?? []} cards={payload?.musicianCards ?? []} />
+          <CandidateList title={t("场地候选（最多 3 个）", "Venue candidates (up to 3)")} candidates={demand?.matching?.venues ?? []} cards={payload?.venueCards ?? []} />
         </div>
       </div>
     </WishLiveShell>

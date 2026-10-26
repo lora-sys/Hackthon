@@ -3,6 +3,7 @@
 import type { Deal, Negotiation } from "@wishlive/shared";
 import { useEffect, useMemo, useState } from "react";
 import { DemoImage, WishLiveShell } from "../demo/wishlive-shell";
+import { useLanguage } from "../language-provider";
 import { formatStreamEvent, type DashboardEvent, type StreamEventPayload } from "../../lib/dashboard-data";
 
 type RunState = {
@@ -11,6 +12,7 @@ type RunState = {
 };
 
 export function NegotiationClient({ negotiationId }: { negotiationId: string }) {
+  const { t } = useLanguage();
   const [state, setState] = useState<RunState>({
     negotiation: null,
     deal: null
@@ -20,7 +22,7 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
 
   useEffect(() => {
     void refreshNegotiation();
-    void refreshEvents();
+    void refreshEvents().catch(() => setError("暂时无法加载记录 / Unable to load activity"));
   }, [negotiationId]);
 
   useEffect(() => {
@@ -72,9 +74,9 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
     <WishLiveShell active="Matches" online={57} section="A2A Room">
       <div className="grid gap-9">
         <header>
-          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">Negotiation Room</h1>
+          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">{t("演出协商", "Negotiation Room")}</h1>
           <p className="mt-4 text-2xl font-bold text-white/48">
-            Venue Agent, Musician Agent and Negotiation Agent converge on a deal.
+            {t("查看报价与还价，达成条款后进入人工确认。", "Review offers and counteroffers before human confirmation.")}
           </p>
         </header>
 
@@ -83,54 +85,53 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
         <div className="grid gap-12 xl:grid-cols-[0.72fr_1fr]">
           <DemoImage
             alt="Musician live"
-            caption="Musician live photo"
+            caption={t("现场演出示意", "Illustrative live photo")}
             className="min-h-[650px]"
             src="/image/Negotiation Room.webp"
           />
 
           <section className="wl-card p-12">
-            <h2 className="text-5xl font-black">Live Negotiation</h2>
+            <h2 className="text-5xl font-black">{t("协商记录", "Negotiation history")}</h2>
             <div className="mt-10 grid gap-7">
               {proposals.map((proposal, index) => (
                 <div className="wl-agent-message" key={proposal.proposalId}>
                   <h3 className={index % 2 === 0 ? "text-2xl font-black text-[#ff974a]" : "text-2xl font-black text-[#45f5a5]"}>
-                    {proposal.senderAgentId.includes("venue") ? "Venue Agent" : "Musician Agent"}
+                    {proposal.senderAgentId.includes("venue") ? t("场地智能体", "Venue Agent") : t("乐手智能体", "Musician Agent")}
                   </h3>
                   <p className="mt-2 text-lg font-bold text-white/55">
-                    {proposal.type.toLowerCase()}: fee ${proposal.terms.venueFee.toLocaleString()} / split{" "}
-                    {proposal.terms.splitPercentage}% / {proposal.decision.toLowerCase()}
+                    {proposal.type === "INITIAL" ? t("报价", "Offer") : t("还价", "Counteroffer")}: {t("场地费用", "Venue fee")} {proposal.terms.venueFee.toLocaleString()} / {t("分成比例", "Split")} {proposal.terms.splitPercentage}% · {proposal.decision === "ACCEPTED" ? t("已接受", "Accepted") : proposal.decision === "REJECTED" ? t("已拒绝", "Rejected") : t("待处理", "Pending")}
                   </p>
                 </div>
               ))}
 
               <div className="wl-agent-message">
-                <h3 className="text-2xl font-black text-[#52e7ff]">Negotiation Agent</h3>
+                <h3 className="text-2xl font-black text-[#52e7ff]">{t("协商智能体", "Negotiation Agent")}</h3>
                 <p className="mt-2 text-lg font-bold text-white/55">
-                  {state.deal ? "accept → deal.created" : "routing proposal and counter proposal"}
+                  {state.deal ? t("条款已达成，订单已创建", "Terms accepted; deal created") : t("正在协调报价与还价", "Routing offers and counteroffers")}
                 </p>
               </div>
 
               <div className="wl-agent-message">
-                <h3 className="text-2xl font-black text-[#d49aff]">ShowConfirm Agent</h3>
+                <h3 className="text-2xl font-black text-[#d49aff]">{t("演出确认智能体", "ShowConfirm Agent")}</h3>
                 <p className="mt-2 text-lg font-bold text-white/55">
-                  {state.deal ? "waiting for human confirmation" : "waiting for deal.created"}
+                  {state.deal ? t("等待人工确认，尚未结算", "Awaiting human confirmation; not settled") : t("等待达成条款", "Awaiting a deal")}
                 </p>
               </div>
             </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-6">
-              <a className="wl-primary inline-flex items-center justify-center" href={showRoute}>
-                DEAL.CREATED
-              </a>
+              {state.deal && <a className="wl-primary inline-flex items-center justify-center" href={showRoute}>
+                {t("查看待确认订单", "Review pending deal")}
+              </a>}
               <button className="wl-pill" onClick={() => void refreshNegotiation()} type="button">
-                Refresh A2A
+                {t("刷新协商", "Refresh negotiation")}
               </button>
             </div>
           </section>
         </div>
 
-        <section className="wl-card p-8">
-          <h2 className="text-3xl font-black">Agent Runtime Trace</h2>
+        <details className="wl-card p-8">
+          <summary className="cursor-pointer font-bold">{t("高级：智能体运行记录", "Advanced: agent runtime trace")}</summary>
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {runtimeEvents.map((event) => (
               <div className="wl-agent-message" key={event.id}>
@@ -142,7 +143,7 @@ export function NegotiationClient({ negotiationId }: { negotiationId: string }) 
               </div>
             ))}
           </div>
-        </section>
+        </details>
       </div>
     </WishLiveShell>
   );

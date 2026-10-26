@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
+import { useLanguage } from "../components/language-provider";
 import { WalletConnectButton } from "../components/wallet-connect-button";
 
 const flow = ["Wish", "Demand", "Match", "Negotiate", "Confirm", "Settle", "Live Show"];
 
 export default function HomePage() {
+  const { t } = useLanguage();
   return (
-    <main className="min-h-screen bg-[#03030a] text-white">
+    <main className="wl-landing min-h-screen bg-[#03030a] text-white">
       <section className="relative min-h-screen overflow-hidden px-7 py-7">
         <img
           alt="WishLive underground live show"
@@ -21,12 +25,12 @@ export default function HomePage() {
           </Link>
           <nav className="hidden items-center gap-11 text-sm font-black text-white/74 lg:flex">
             <Link className="border-b-2 border-[#d49aff] pb-2 text-white" href="/">
-              首页
+              {t("首页", "Home")}
             </Link>
-            <Link href="/wish-pool">许愿</Link>
-            <Link href="/dashboard">探索演出</Link>
+            <Link href="/wish-pool">{t("许愿", "Wishes")}</Link>
+            <Link href="/dashboard">{t("探索演出", "Explore")}</Link>
             <Link href="/my-agent">Agent</Link>
-            <Link href="/topology">拓扑</Link>
+            <Link href="/topology">{t("拓扑", "Topology")}</Link>
           </nav>
           <WalletConnectButton />
         </div>
@@ -34,32 +38,32 @@ export default function HomePage() {
         <div className="relative z-10 mx-auto grid max-w-[1540px] gap-8 px-8 pb-12 pt-36">
           <div className="max-w-3xl">
             <p className="font-mono text-xs font-black uppercase tracking-[0.42em] text-[#52e7ff]">
-              Live Music Agent Marketplace
+              {t("现场音乐智能体市场", "Live Music Agent Marketplace")}
             </p>
             <h1 className="mt-8 text-6xl font-black leading-[0.96] tracking-tight sm:text-8xl">
               WishLive
             </h1>
             <p className="mt-5 text-3xl font-black text-[#e9d5ff]">
-              每一场演出，都始于每一份期待
+              {t("每一场演出，都始于每一份期待", "Every live show begins with a wish")}
             </p>
             <div className="mt-12 max-w-3xl border-y border-white/10 bg-[#09111f]/52 p-8 backdrop-blur">
-              <p className="mb-7 text-2xl font-black text-white/86">请选择现在的角色？</p>
+              <p className="mb-7 text-2xl font-black text-white/86">{t("请选择现在的角色？", "Choose your role")}</p>
               <div className="flex flex-wrap gap-5">
-                <RoleLink href="/create-agent?role=audience" primary label="观众" sub="Audience" />
-                <RoleLink href="/create-agent?role=musician" label="乐手" sub="Musician" />
-                <RoleLink href="/create-agent?role=venue" label="场地" sub="Venue" />
+                <RoleLink href="/create-agent?role=audience" primary label={t("观众", "Audience")} sub="Audience" />
+                <RoleLink href="/create-agent?role=musician" label={t("乐手", "Musician")} sub="Musician" />
+                <RoleLink href="/create-agent?role=venue" label={t("场地", "Venue")} sub="Venue" />
               </div>
             </div>
             <div className="mt-10 flex flex-wrap gap-5">
               <Link className="wl-primary inline-flex items-center justify-center" href="/wish-pool">
-                许愿一场演出 →
+                {t("许愿一场演出 →", "Wish for a show →")}
               </Link>
               <Link className="wl-pill" href="/dashboard">
-                Open Dashboard
+                {t("打开控制台", "Open Dashboard")}
               </Link>
             </div>
             <p className="mt-10 font-mono text-sm font-black text-white/76">
-              ● 目前有 57 Agents 在线协作
+              {t("演示目录包含 57 个 Agent · 在线状态请查看控制台", "Demo registry: 57 agents · check the dashboard for live status")}
             </p>
           </div>
         </div>
@@ -68,14 +72,13 @@ export default function HomePage() {
       <section className="mx-auto grid max-w-[1380px] gap-16 px-7 py-24">
         <div>
           <p className="font-mono text-xs font-black uppercase tracking-[0.36em] text-[#d49aff]">
-            01 / From Wish To Live Show
+            {t("01 / 从许愿到现场", "01 / From Wish To Live Show")}
           </p>
           <h2 className="mt-7 text-4xl font-black tracking-tight md:text-6xl">
-            一个观众的期待，如何被 Agent 协作变成真实演出
+            {t("一个观众的期待，如何被 Agent 协作变成真实演出", "From an audience wish to a live show through agent collaboration")}
           </h2>
           <p className="mt-4 max-w-5xl text-lg font-semibold leading-8 text-white/55">
-            WishLive 把观众 Wish 聚合成真实需求，再由 Matching / Negotiation /
-            Settlement Agents 推进到演出确认、链上托管和 Ticket NFT。
+            {t("WishLive 聚合观众需求，再由撮合、协商和结算 Agent 推进演出流程。", "WishLive aggregates audience demand, then coordinates matching, negotiation and settlement agents.")}
           </p>
         </div>
 
@@ -100,19 +103,18 @@ export default function HomePage() {
           <div className="grid gap-9 lg:grid-cols-[1.1fr_0.72fr]">
             <div className="wl-card p-9">
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#d49aff]">
-                Event-driven marketplace
+                {t("事件驱动的演出市场", "Event-driven marketplace")}
               </p>
               <p className="mt-8 text-2xl font-black md:text-3xl">
                 wish.created → demand.created → matching.completed → deal.created
               </p>
               <p className="mt-14 text-base font-semibold leading-8 text-white/56">
-                每一步都进入 Redis Streams，并通过 AI SDK Telemetry / Langfuse 记录
-                workflow_id、agent_id 和 conversation_id。
+                {t("流程通过 Redis Streams 传递事件，并保留工作流与智能体追踪信息。", "Workflow events travel through Redis Streams with workflow and agent tracing context.")}
               </p>
             </div>
             <figure className="wl-image-card min-h-[260px]">
               <img alt="Selected band" className="h-full w-full object-cover" src="/image/landing page -2.webp" />
-              <figcaption>Selected band image #1</figcaption>
+              <figcaption>{t("音乐现场", "Live music")}</figcaption>
             </figure>
           </div>
         </div>
@@ -122,11 +124,11 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-[1380px] gap-12">
           <div>
             <p className="font-mono text-xs font-black uppercase tracking-[0.36em] text-[#d49aff]">
-              02 / Agent Marketplace
+              {t("02 / 智能体市场", "02 / Agent Marketplace")}
             </p>
-            <h2 className="mt-7 text-5xl font-black md:text-7xl">57+ Autonomous Agents</h2>
+            <h2 className="mt-7 text-5xl font-black md:text-7xl">{t("57 个演示智能体", "57 Demo Agents")}</h2>
             <p className="mt-4 text-lg font-semibold text-white/58">
-              Every participant owns an agent. 每个角色都有自己的 Agent，每个流程都通过 A2A 消息推进。
+              {t("每个角色都有自己的 Agent，通过 A2A 消息推进流程。以下数字为演示样例。", "Each role owns an agent communicating through A2A messages. Figures below are illustrative.")}
             </p>
           </div>
           <div className="grid gap-9 lg:grid-cols-[1fr_0.52fr]">
@@ -150,14 +152,14 @@ export default function HomePage() {
             </div>
             <div className="wl-card p-9">
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#d49aff]">
-                Live Agent Status
+                {t("演示数据 · 非实时状态", "Demo data · not live status")}
               </p>
               <p className="mt-12 text-7xl font-black">57</p>
-              <p className="mt-2 text-lg font-semibold text-white/48">online agents</p>
+              <p className="mt-2 text-lg font-semibold text-white/48">{t("预置智能体", "seeded agents")}</p>
               <div className="mt-11 grid gap-6">
-                <MiniMetric label="Active tasks" value="128" />
-                <MiniMetric label="Negotiations" value="23" tone="orange" />
-                <MiniMetric label="On-chain tx" value="Sepolia" tone="purple" />
+                <MiniMetric label={t("任务样例", "Example tasks")} value="128" />
+                <MiniMetric label={t("协商样例", "Example negotiations")} value="23" tone="orange" />
+                <MiniMetric label={t("目标网络", "Target network")} value="Sepolia" tone="purple" />
               </div>
             </div>
           </div>
@@ -168,13 +170,13 @@ export default function HomePage() {
         <div className="grid gap-9 lg:grid-cols-[0.55fr_1fr]">
           <figure className="wl-image-card min-h-[430px]">
             <img alt="Negotiation musician" className="h-full w-full object-cover" src="/image/landing page-3.webp" />
-            <figcaption>Selected band image #2</figcaption>
+            <figcaption>{t("舞台准备", "Stage preparation")}</figcaption>
           </figure>
           <div className="wl-card p-9">
             <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#d49aff]">
-              03 / Live Negotiation
+              {t("03 / 协商流程示例", "03 / Negotiation example")}
             </p>
-            <h2 className="mt-7 text-4xl font-black md:text-6xl">Agent 自动协商，而不是人工拉群</h2>
+            <h2 className="mt-7 text-4xl font-black md:text-6xl">{t("让 Agent 协助演出协商", "Let agents coordinate show negotiations")}</h2>
             <div className="mt-10 grid gap-6">
               <AgentLine color="orange" title="Venue Agent #7" body="capacity: 200 / fee: 5000 / split: 20%" />
               <AgentLine color="green" title="Musician Agent #3" body="demand score: 92 / expected revenue: 6200" />
@@ -188,7 +190,7 @@ export default function HomePage() {
           <div className="grid gap-8 lg:grid-cols-2">
             <div>
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#d49aff]">
-                Event Stream
+                {t("事件流示例", "Example event stream")}
               </p>
               <div className="mt-8 grid gap-6 text-lg font-semibold text-white/78">
                 <p>14:32:21 wish.created</p>
@@ -201,7 +203,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="font-mono text-xs font-black uppercase tracking-[0.28em] text-[#d49aff]">
-                Blockchain Status
+                {t("区块链数据示例（非实时）", "Illustrative blockchain data (not live)")}
               </p>
               <div className="mt-8 grid grid-cols-3 gap-5">
                 <MiniMetric label="Escrow" value="57" />
@@ -210,7 +212,7 @@ export default function HomePage() {
               </div>
               <figure className="wl-image-card mt-10 min-h-[220px]">
                 <img alt="Reserved band" className="h-full w-full object-cover" src="/image/landing page-4.webp" />
-                <figcaption>Reserved band image #3</figcaption>
+                <figcaption>{t("乐队现场", "Live band")}</figcaption>
               </figure>
             </div>
           </div>
@@ -220,31 +222,31 @@ export default function HomePage() {
       <section className="mx-auto grid max-w-[1380px] gap-24 px-7 pb-24 pt-10">
         <div className="grid gap-10 lg:grid-cols-[1fr_0.7fr] lg:items-start">
           <h2 className="text-5xl font-black leading-[1.08] text-white/70 md:text-7xl">
-            Traditional Ticketing
+            {t("传统票务", "Traditional Ticketing")}
             <br />
-            Sells Existing Shows
+            {t("售卖已有演出", "Sells Existing Shows")}
             <br />
             <span className="text-white">WishLive</span>
             <br />
-            <span className="text-white">Creates New Shows</span>
+            <span className="text-white">{t("创造新的演出", "Creates New Shows")}</span>
           </h2>
           <figure className="wl-image-card min-h-[360px]">
             <img alt="Final CTA musician" className="h-full w-full object-cover" src="/image/landing page-5.webp" />
-            <figcaption>Reserved hero image</figcaption>
+            <figcaption>{t("音乐人的舞台", "A musician's stage")}</figcaption>
           </figure>
         </div>
         <div className="wl-card p-12">
-          <h2 className="text-5xl font-black">Create a Wish</h2>
-          <p className="mt-4 text-2xl font-black text-[#d49aff]">Let Agents Build The Show</p>
+          <h2 className="text-5xl font-black">{t("创建许愿", "Create a Wish")}</h2>
+          <p className="mt-4 text-2xl font-black text-[#d49aff]">{t("让智能体协作打造演出", "Let Agents Build The Show")}</p>
           <p className="mt-8 max-w-3xl text-lg font-semibold leading-8 text-white/54">
-            把观众期待、音乐人档期、场地方资源和链上结算连接成一次完整的演出生成流程。
+            {t("连接观众期待、音乐人档期和场地资源。", "Connect audience wishes, musician availability and venue resources.")}
           </p>
           <div className="mt-10 flex flex-wrap gap-6">
             <Link className="wl-primary inline-flex items-center justify-center" href="/wish-pool">
-              Create Wish
+              {t("创建许愿", "Create Wish")}
             </Link>
             <Link className="wl-pill" href="/dashboard">
-              Open Dashboard
+              {t("打开控制台", "Open Dashboard")}
             </Link>
             <WalletConnectButton />
           </div>

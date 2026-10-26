@@ -4,6 +4,7 @@ import type { Deal } from "@wishlive/shared";
 import { useEffect, useState } from "react";
 import { useWalletAccount } from "../../app/providers";
 import { DemoImage, WishLiveShell } from "../demo/wishlive-shell";
+import { useLanguage } from "../language-provider";
 
 type SettlementResult = {
   status: string;
@@ -33,6 +34,7 @@ type ContractStatus = {
 };
 
 export function ShowConfirmedClient({ dealId }: { dealId: string }) {
+  const { t } = useLanguage();
   const { address } = useWalletAccount();
   const [deal, setDeal] = useState<Deal | null>(null);
   const [settlement, setSettlement] = useState<SettlementResult | null>(null);
@@ -94,15 +96,15 @@ export function ShowConfirmedClient({ dealId }: { dealId: string }) {
   }
 
   const settledDeal = settlement?.deal ?? deal;
-  const tickets = settlement?.ticket ? "1 minted" : settledDeal?.ticketId ? "1 minted" : "ready to mint";
+  const tickets = settlement?.ticket || settledDeal?.ticketId ? t("已有票据记录（待链上验证）", "Ticket record exists (verification required)") : t("未铸造", "Not minted");
 
   return (
     <WishLiveShell active="Chain" online={57} section="Settlement" showWallet>
       <div className="grid gap-9">
         <header>
-          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">Show Confirmed</h1>
+          <h1 className="text-6xl font-black leading-none tracking-tight md:text-7xl">{t("演出确认", "Show confirmation")}</h1>
           <p className="mt-4 text-xl font-bold text-white/48">
-            Final confirmed show, escrow created, Ticket NFT ready to mint.
+            {t("结算暂未启用，未扣款或铸票。", "Settlement is not enabled. No funds sent or tickets minted.")}
           </p>
         </header>
 
@@ -111,27 +113,27 @@ export function ShowConfirmedClient({ dealId }: { dealId: string }) {
         <div className="grid gap-10 xl:grid-cols-[1fr_0.48fr]">
           <DemoImage
             alt="Confirmed venue"
-            caption="Confirmed venue photo"
+            caption={t("场地示意图，非确认凭证", "Illustrative venue, not confirmation")}
             className="min-h-[500px]"
             src="/image/Show Confirmed.webp"
           />
 
           <section className="wl-card p-9">
-            <h2 className="text-4xl font-black">Show Confirmed</h2>
+            <h2 className="text-4xl font-black">{t("订单状态", "Deal status")}: {settledDeal?.status === "PENDING_CONFIRMATION" ? t("待人工确认", "Pending confirmation") : settledDeal?.status ?? t("加载中", "Loading")}</h2>
             <div className="mt-10 grid gap-8 text-lg font-black">
-              <Info label="Venue" value={settledDeal?.venueAgentId ?? "pending"} />
-              <Info label="Date" value={settledDeal?.terms.schedule.date ?? "Fri 21:00"} />
-              <Info label="Capacity" value="240" />
-              <Info label="Tickets" value={tickets} />
-              <Info label="Chain" value={`${contracts?.chainId === 11155111 ? "Sepolia" : "Hardhat"} ${contracts?.chainId ?? 31337}`} />
+              <Info label={t("场地标识", "Venue ID")} value={settledDeal?.venueAgentId ?? t("待确认", "Pending")} />
+              <Info label={t("日期", "Date")} value={settledDeal?.terms.schedule.date ?? "—"} />
+              <Info label={t("容量", "Capacity")} value={t("未验证", "Not verified")} />
+              <Info label={t("票据", "Tickets")} value={tickets} />
+              <Info label={t("网络", "Network")} value={contracts ? `${contracts.chainId === 11155111 ? "Sepolia" : "Hardhat"} ${contracts.chainId}` : "—"} />
             </div>
             <button
               className="wl-primary mt-10 w-full"
-              disabled={confirming || settledDeal?.status === "SETTLED"}
+              disabled
               onClick={() => void confirmShow()}
               type="button"
             >
-              {settledDeal?.status === "SETTLED" ? "Ticket NFT Minted" : confirming ? "Settlement Running..." : "Mint Ticket NFT"}
+              {confirming ? t("处理中", "Processing") : t("结算暂未启用", "Settlement not enabled")}
             </button>
           </section>
         </div>
@@ -139,7 +141,7 @@ export function ShowConfirmedClient({ dealId }: { dealId: string }) {
         <section className="wl-card max-w-4xl p-10">
           <h2 className="text-4xl font-black">Trust Layer</h2>
           <p className="mt-8 text-2xl font-black text-[#45f5a5]">
-            Escrow created → Settlement scheduled → Ticket NFT minted
+            {t("只有真实交易验证成功后才会显示结算完成。", "Settlement completes only after successful transaction verification.")}
           </p>
           <div className="mt-8 grid gap-4 text-sm font-semibold text-white/55">
             <p>Deal: {settledDeal?.dealId ?? dealId}</p>

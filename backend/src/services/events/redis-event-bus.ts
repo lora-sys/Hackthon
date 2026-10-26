@@ -6,6 +6,7 @@ type RedisClient = ReturnType<typeof createClient>;
 
 export class RedisEventBus implements EventBus {
   private client: RedisClient | undefined;
+  private connecting: Promise<void> | undefined;
 
   constructor(private readonly url = process.env.REDIS_URL ?? "redis://localhost:6379") {}
 
@@ -44,14 +45,27 @@ export class RedisEventBus implements EventBus {
 
   private async getClient(): Promise<RedisClient> {
     if (!this.client) {
-      this.client = createClient({ url: this.url });
+      this.client = createClient({
+        url: this.url,
+        disableOfflineQueue: true,
+        socket: { connectTimeout: 3000, reconnectStrategy: false }
+      });
       this.client.on("error", (error) => {
         console.error("Redis event bus error", error);
       });
     }
 
-    if (!this.client.isOpen) {
-      await this.client.connect();
+    if (!this.client.isReady) {
+      if (!this.connecting) {
+        this.connecting = this.client.connect().then(() => undefined).finally(() => {
+          this.connecting = undefined;
+        });
+      }
+      try {
+        await this.connecting;
+      } catch {
+        throw new Error("EVENT_BUS_UNAVAILABLE");
+      }
     }
 
     return this.client;

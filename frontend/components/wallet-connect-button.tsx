@@ -1,10 +1,12 @@
 "use client";
 
 import { useWalletAccount } from "../app/providers";
+import { useLanguage } from "./language-provider";
 
 export function WalletConnectButton({ compact = false }: { compact?: boolean }) {
+  const { t } = useLanguage();
   const { address, connect, disconnect, isConnected, isPending } = useWalletAccount();
-  const className = compact ? "wl-pill wl-pill-small" : "wl-wallet-button";
+  const className = (compact ? "wl-pill wl-pill-small" : "wl-wallet-button") + " whitespace-nowrap shrink-0";
 
   if (isConnected) {
     return (
@@ -21,7 +23,7 @@ export function WalletConnectButton({ compact = false }: { compact?: boolean }) 
       onClick={() => void connect()}
       type="button"
     >
-      {isPending ? "Connecting..." : "Connect Wallet"}
+      {isPending ? t("连接中…", "Connecting...") : t("连接钱包", "Connect Wallet")}
     </button>
   );
 }

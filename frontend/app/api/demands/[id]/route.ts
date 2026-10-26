@@ -1,5 +1,6 @@
 import { RedisEventBus, getRegistryService, getWishWorkflowService } from "@wishlive/backend";
 import { errorResponse, json } from "../../_lib/respond";
+import { matchingReadiness } from "../../../../lib/matching-readiness";
 
 const STREAMS = ["wish.events", "demand.events", "matching.events", "agent.runtime", "a2a.discovery"];
 
@@ -12,6 +13,7 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const demand = getWishWorkflowService().getDemand(safeDecode(id));
+    const readiness = matchingReadiness(demand.matching);
     const registry = getRegistryService();
     await registry.ensureSeeded();
     const history = await eventBus.readRecent(STREAMS, 100);
@@ -32,12 +34,13 @@ export async function GET(_request: Request, context: RouteContext) {
       venueCards: (demand.matching?.venues ?? []).map((candidate) => registry.get(candidate.agentId)),
       events,
       analysis: {
-        demandScore: Math.min(99, Math.round(demand.wishCount * 7.5 + (demand.matching ? 17 : 0))),
-        probability: demand.matching ? 87 : Math.min(80, demand.wishCount * 8),
+        ...readiness,
+        demandScore: null,
+        probability: null,
         completed: [
           "Audience clustering completed",
-          demand.matching ? "Venue capacity matched" : "Venue capacity pending",
-          demand.matching ? "Musician availability found" : "Musician availability pending"
+          readiness.venues > 0 ? "Venue candidates found" : "Venue candidates pending",
+          readiness.musicians > 0 ? "Musician candidates found" : "Musician candidates pending"
         ]
       }
     });

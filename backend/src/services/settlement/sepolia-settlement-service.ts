@@ -1,6 +1,6 @@
 import type { EventBus } from "../events";
 import { createEventEnvelope, MemoryEventBus } from "../events";
-import { createPublicClient, createWalletClient, http, isAddress, type Hash } from "viem";
+import { createPublicClient, createWalletClient, http, isAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { hardhat, sepolia } from "viem/chains";
 
@@ -150,9 +150,11 @@ export class SepoliaSettlementService {
         const dealIdBytes = `0x${Buffer.from(params.dealId.replace("deal:", "").replace(/-/g, "").slice(0, 32).padEnd(32, "0")).toString("hex")}` as `0x${string}`;
         const txHash = await config.walletClient.writeContract({
           address: config.escrowAddress,
+          account: config.account,
           abi: escrowAbi,
+          chain: undefined,
           functionName: "createEscrow",
-          args: [dealIdBytes, params.payees as `0x${string}`[], params.shares],
+          args: [dealIdBytes, params.payees as `0x${string}`[], params.shares.map(BigInt)],
           value: BigInt(params.amount * 1_000_000_000)
         });
         const receipt = await config.publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -188,7 +190,9 @@ export class SepoliaSettlementService {
       try {
         const txHash = await config.walletClient.writeContract({
           address: config.escrowAddress,
+          account: config.account,
           abi: escrowAbi,
+          chain: undefined,
           functionName: "releaseFunds",
           args: [BigInt(escrow.onchainEscrowId), `0x${Buffer.from(params.signature).toString("hex")}` as `0x${string}`]
         });
@@ -215,7 +219,9 @@ export class SepoliaSettlementService {
         const dealIdBytes = `0x${Buffer.from(params.dealId.replace("deal:", "").replace(/-/g, "").slice(0, 32).padEnd(32, "0")).toString("hex")}` as `0x${string}`;
         const txHash = await config.walletClient.writeContract({
           address: config.ticketNftAddress,
+          account: config.account,
           abi: ticketAbi,
+          chain: undefined,
           functionName: "mint",
           args: [params.to as `0x${string}`, dealIdBytes, params.metadataUri]
         });

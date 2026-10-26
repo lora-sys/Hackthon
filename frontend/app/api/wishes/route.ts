@@ -26,6 +26,9 @@ export async function POST(request: Request) {
   try {
     const service = getWishWorkflowService();
     const payload = await request.json();
+    if (typeof payload.date !== "string" || payload.date <= new Date().toISOString().slice(0, 10)) {
+      return json({ error: "请选择未来日期 / Choose a future date" }, 400);
+    }
     return json(await service.submitWish(payload), 201);
   } catch (error) {
     return errorResponse(error);

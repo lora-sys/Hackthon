@@ -14,8 +14,8 @@ export function AgentTopology({ agents }: { agents: AgentCard[] }) {
   );
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_310px]">
-      <div className="h-[460px] overflow-hidden rounded-lg border border-white/10 bg-[#07080d]">
+    <div className="min-w-0 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,310px)]">
+      <div className="min-w-0 h-[320px] sm:h-[460px] overflow-hidden rounded-lg border border-white/10 bg-[#07080d]">
         <ReactFlow
           colorMode="dark"
           edges={edges}

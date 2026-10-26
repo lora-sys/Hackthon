@@ -33,6 +33,7 @@ input {
 }
 
 .wl-grid {
+  display: flex;
   background-color: #05050a;
   background-image:
     linear-gradient(rgba(122, 78, 175, 0.16) 1px, transparent 1px),
@@ -44,14 +45,14 @@ input {
   position: sticky;
   top: 0;
   min-height: 100vh;
-  width: 320px;
-  flex: 0 0 320px;
+  width: 224px;
+  flex: 0 0 224px;
   border: 1px solid rgba(210, 158, 255, 0.42);
   border-left: 0;
   border-top-right-radius: 36px;
   border-bottom-right-radius: 36px;
   background: rgba(10, 9, 22, 0.92);
-  padding: 46px 34px;
+  padding: 28px 18px;
 }
 
 .wl-nav-item {
@@ -59,9 +60,9 @@ input {
   border: 1px solid rgba(210, 158, 255, 0.26);
   border-radius: 18px;
   background: rgba(7, 7, 18, 0.72);
-  padding: 17px 25px;
+  padding: 12px 16px;
   color: rgba(245, 241, 255, 0.52);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
@@ -346,3 +347,56 @@ input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Work surfaces prioritize tasks; the landing page retains its visual scale. */
+.wl-workspace { overflow-wrap: anywhere; }
+.wl-workspace h1 { font-size: clamp(28px, 3vw, 40px); line-height: 1.15; }
+.wl-workspace h2 { font-size: 26px; line-height: 1.25; }
+.wl-workspace h3 { font-size: 18px; }
+.wl-workspace header p { font-size: 16px; font-weight: 400; color: #b7afc7; margin-top: 10px; }
+.wl-workspace .wl-card { padding: 24px; border-radius: 20px; min-width: 0; }
+.wl-workspace .wl-image-card { min-height: 0; height: 280px; border-radius: 20px; }
+.wl-workspace .wl-image-card img { height: 100%; }
+.wl-workspace .wl-image-card figcaption { font-size: 16px; left: 20px; bottom: 18px; }
+.wl-workspace .wl-primary { min-height: 48px; padding: 10px 24px; border-radius: 12px; }
+.wl-workspace .wl-pill, .wl-workspace .wl-online-pill { min-height: 40px; padding: 8px 18px; font-size: 13px; }
+.wl-workspace .wl-stat { min-height: 100px; padding: 18px; color: #b7afc7; }
+.wl-workspace .wl-stat strong { margin-top: 10px; font-size: 30px; }
+.wl-workspace .wl-input { height: 44px; font-weight: 400; border-radius: 10px; }
+.wl-wish-fields label:not(:first-child) { margin-top: 8px; }
+.wl-workspace .wl-card > .mt-10 { margin-top: 20px; }
+.wl-workspace .wl-agent-message p { font-size: 15px; font-weight: 400; color: #b7afc7; }
+.wl-primary:disabled { opacity: .45; cursor: not-allowed; }
+.wl-input:focus-visible, .wl-textarea:focus-visible { outline: 2px solid #d49aff; outline-offset: 2px; }
+.wl-dashboard *, .wl-landing .grid > * { min-width: 0; }
+.wl-dashboard { overflow-wrap: anywhere; }
+.wl-dashboard table { table-layout: fixed; }
+.wl-dashboard td { overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .wl-sidebar { padding: 16px; border-radius: 0; }
+  .wl-sidebar > a { display: flex; align-items: center; gap: 12px; }
+  .wl-sidebar > a > div:first-child { font-size: 24px; }
+  .wl-sidebar nav { display: flex; overflow-x: auto; margin-top: 16px; gap: 8px; }
+  .wl-nav-item { flex: 0 0 auto; padding: 10px 14px; }
+  .wl-workspace { padding: 20px 16px; }
+  .wl-workspace .wl-image-card { height: 160px; }
+  .wl-wish-layout > figure { order: 2; }
+  .wl-dashboard table { min-width: 560px; }
+  .wl-landing h1 { font-size: clamp(40px, 12vw, 64px); }
+  .wl-landing h2 { font-size: 32px; overflow-wrap: anywhere; }
+  .wl-landing .wl-card { padding: 24px; overflow-wrap: anywhere; }
+  .wl-landing .wl-primary { padding: 12px 22px; min-height: 48px; }
+  .wl-landing .wl-pill, .wl-landing .wl-wallet-button { padding: 10px 16px; min-height: 44px; font-size: 13px; }
+  .wl-landing .grid-cols-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 20px; }
+}
+progress {
+  appearance: none;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #272132;
+}
+progress::-webkit-progress-bar { background: #272132; }
+progress::-webkit-progress-value { background: #d49aff; border-radius: 999px; }
+progress::-moz-progress-bar { background: #d49aff; border-radius: 999px; }

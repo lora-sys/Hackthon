@@ -24,6 +24,7 @@
     "react-dom": "19.2.7",
     "react-hook-form": "7.68.0",
     "recharts": "3.5.1",
+    "tailwindcss": "4.3.0",
     "viem": "2.40.3",
     "zod": "4.1.13",
     "zustand": "5.0.9"

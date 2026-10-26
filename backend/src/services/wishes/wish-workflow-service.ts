@@ -44,7 +44,6 @@ export class WishWorkflowService {
       createdAt: now
     });
 
-    this.wishes.set(wish.wishId, wish);
     await this.publish(WISH_STREAM, "wish.created", "agent:audience:001", {
       wishId: wish.wishId,
       userId: wish.userId,
@@ -53,6 +52,7 @@ export class WishWorkflowService {
       city: wish.city,
       preferredDate: wish.preferredDate
     });
+    this.wishes.set(wish.wishId, wish);
 
     const demand = await this.processWishWithAgents(wish, request, now);
 

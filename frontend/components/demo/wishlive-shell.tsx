@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useLanguage } from "../language-provider";
 import type { ReactNode } from "react";
 import { WalletConnectButton } from "../wallet-connect-button";
 
 const navItems = [
   ["Overview", "/"],
   ["Wishes", "/wish-pool"],
+  ["My wishes", "/my-wishes"],
   ["Matches", "/demand-pool/latest"],
   ["Agents", "/my-agent"],
   ["Chain", "/dashboard"]
@@ -23,13 +27,15 @@ export function WishLiveShell({
   online?: number;
   showWallet?: boolean;
 }) {
+  const { t } = useLanguage();
+  const labels: Record<string, string> = { Overview: "首页", Wishes: "创建许愿", "My wishes": "我的许愿", Matches: "撮合", Agents: "智能体", Chain: "链上状态", Audience: "观众" };
   return (
     <main className="wl-grid min-h-screen bg-[#05050a] text-white">
       <aside className="wl-sidebar">
         <Link className="block" href="/">
           <div className="text-4xl font-black tracking-tight">WishLive</div>
           <div className="mt-2 text-sm font-black uppercase tracking-[0.14em] text-[#d9a5ff]">
-            {section}
+            {t(labels[section] ?? section, section)}
           </div>
         </Link>
         <nav className="mt-16 grid gap-5">
@@ -39,15 +45,15 @@ export function WishLiveShell({
               href={href}
               key={label}
             >
-              {label}
+              {t(labels[label] ?? label, label)}
             </Link>
           ))}
         </nav>
       </aside>
-      <section className="min-w-0 flex-1 px-6 py-12 lg:px-14">
-        <div className="mb-12 flex items-center justify-end gap-4">
+      <section className="wl-workspace min-w-0 flex-1 px-5 py-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
           {showWallet && <WalletConnectButton compact />}
-          <span className="wl-online-pill">● {online} Agents Online</span>
+          <span className="wl-online-pill">{t("演示目录", "Demo registry")} · {online} Agents</span>
         </div>
         {children}
       </section>
